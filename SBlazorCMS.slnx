@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="SBlazorCMS.Domain/SBlazorCMS.Domain.csproj" />
+  <Project Path="SBlazorCMS.Infrastructure/SBlazorCMS.Infrastructure.csproj" />
+  <Project Path="SBlazorCMS/SBlazorCMS.csproj" />
+</Solution>

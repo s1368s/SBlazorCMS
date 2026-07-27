@@ -1,0 +1,1 @@
+namespace SBlazorCMS.Domain; public enum ContentStatus{ Draft,Pending,Published,Archived }
