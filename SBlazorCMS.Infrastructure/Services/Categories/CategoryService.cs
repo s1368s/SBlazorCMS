@@ -5,18 +5,8 @@ using SBlazorCMS.Infrastructure.Services.Common;
 
 namespace SBlazorCMS.Infrastructure.Services.Categories;
 
-public class CategoryService(IDbContextFactory<ApplicationDbContext> dbFactory) : ICategoryService
+public class CategoryService(IDbContextFactory<ApplicationDbContext> dbFactory, ILanguageService languageService) : ICategoryService
 {
-    public async Task<List<LanguageDto>> GetActiveLanguagesAsync()
-    {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        return await db.Languages
-            .Where(l => l.IsActive)
-            .OrderByDescending(l => l.IsDefault)
-            .Select(l => new LanguageDto(l.Id, l.Code, l.Name, l.IsDefault))
-            .ToListAsync();
-    }
-
     public async Task<List<SkinOptionDto>> GetSkinOptionsAsync()
     {
         await using var db = await dbFactory.CreateDbContextAsync();
@@ -28,7 +18,7 @@ public class CategoryService(IDbContextFactory<ApplicationDbContext> dbFactory) 
     public async Task<List<CategoryListItemDto>> GetListAsync()
     {
         await using var db = await dbFactory.CreateDbContextAsync();
-        var defaultLangId = await db.Languages.Where(l => l.IsDefault).Select(l => l.Id).FirstAsync();
+        var defaultLangId = await languageService.GetDefaultLanguageIdAsync();
 
         var raw = await db.Categories
             .Select(c => new
@@ -57,7 +47,7 @@ public class CategoryService(IDbContextFactory<ApplicationDbContext> dbFactory) 
     public async Task<List<CategoryOptionDto>> GetParentOptionsAsync(Guid? excludeCategoryId)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
-        var defaultLangId = await db.Languages.Where(l => l.IsDefault).Select(l => l.Id).FirstAsync();
+        var defaultLangId = await languageService.GetDefaultLanguageIdAsync();
 
         var allCategories = await db.Categories
             .Select(c => new
@@ -131,7 +121,7 @@ public class CategoryService(IDbContextFactory<ApplicationDbContext> dbFactory) 
 
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        var defaultLangId = await db.Languages.Where(l => l.IsDefault).Select(l => l.Id).FirstAsync();
+        var defaultLangId = await languageService.GetDefaultLanguageIdAsync();
         if (!request.Translations.TryGetValue(defaultLangId, out var defaultTranslation) ||
             string.IsNullOrWhiteSpace(defaultTranslation.Title) ||
             string.IsNullOrWhiteSpace(defaultTranslation.Slug))

@@ -4,7 +4,6 @@ namespace SBlazorCMS.Infrastructure.Services.Categories;
 
 public interface ICategoryService
 {
-    Task<List<LanguageDto>> GetActiveLanguagesAsync();
     Task<List<SkinOptionDto>> GetSkinOptionsAsync();
     Task<List<CategoryListItemDto>> GetListAsync();
     Task<List<CategoryOptionDto>> GetParentOptionsAsync(Guid? excludeCategoryId);

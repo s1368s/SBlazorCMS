@@ -9,6 +9,8 @@ using SBlazorCMS.Domain;
 using SBlazorCMS.Endpoints;
 using SBlazorCMS.Infrastructure.Persistence;
 using SBlazorCMS.Infrastructure.Services.Categories;
+using SBlazorCMS.Infrastructure.Services.Common;
+using SBlazorCMS.Infrastructure.Services.Tags;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,7 +26,9 @@ builder.Services.AddMudServices(config =>
 builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+builder.Services.AddScoped<ILanguageService, LanguageService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
+builder.Services.AddScoped<ITagService, TagService>();
 
 builder.Services.AddAntiforgery();
 

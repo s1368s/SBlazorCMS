@@ -1,0 +1,117 @@
+@using System.Security.Claims
+@using SBlazorCMS.Infrastructure.Services.Common
+@using SBlazorCMS.Infrastructure.Services.Tags
+@inject ITagService TagService
+@inject ILanguageService LanguageService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isNew ? "افزودن برچسب" : "ویرایش برچسب")</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="d-flex justify-center pa-4">
+                <MudProgressCircular Indeterminate="true" />
+            </div>
+        }
+        else
+        {
+            <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true">
+                @foreach (var lang in _languages)
+                {
+                    <MudTabPanel Text="@lang.Name">
+                        <MudTextField Label="عنوان" @bind-Value="_translations[lang.Id].Title"
+                                      Required="@lang.IsDefault" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3 mt-3" />
+                        <MudTextField Label="نامک (Slug)" @bind-Value="_translations[lang.Id].Slug"
+                                      Required="@lang.IsDefault" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudTabPanel>
+                }
+            </MudTabs>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-3">@_errorMessage</MudAlert>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">انصراف</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save" Disabled="_saving">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Guid? TagId { get; set; }
+
+    private bool _isNew => TagId is null;
+    private bool _loading = true;
+    private bool _saving;
+    private string? _errorMessage;
+
+    private List<LanguageDto> _languages = [];
+    private readonly Dictionary<Guid, TagTranslationInput> _translations = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _languages = await LanguageService.GetActiveLanguagesAsync();
+
+        foreach (var lang in _languages)
+        {
+            _translations[lang.Id] = new TagTranslationInput();
+        }
+
+        if (TagId is { } id)
+        {
+            var editDto = await TagService.GetForEditAsync(id);
+            if (editDto is not null)
+            {
+                foreach (var (languageId, translation) in editDto.Translations)
+                {
+                    _translations[languageId] = translation;
+                }
+            }
+        }
+
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        _saving = true;
+        _errorMessage = null;
+
+        var userId = await GetCurrentUserIdAsync();
+
+        var request = new TagSaveRequest
+        {
+            TagId = TagId,
+            Translations = _translations,
+            CurrentUserId = userId
+        };
+
+        var result = await TagService.SaveAsync(request);
+
+        if (result.Success)
+        {
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        else
+        {
+            _errorMessage = result.ErrorMessage;
+        }
+
+        _saving = false;
+    }
+
+    private async Task<Guid?> GetCurrentUserIdAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var idClaim = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(idClaim, out var id) ? id : null;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

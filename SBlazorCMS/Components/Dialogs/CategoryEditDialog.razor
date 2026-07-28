@@ -2,6 +2,7 @@
 @using SBlazorCMS.Infrastructure.Services.Categories
 @using SBlazorCMS.Infrastructure.Services.Common
 @inject ICategoryService CategoryService
+@inject ILanguageService LanguageService
 @inject AuthenticationStateProvider AuthStateProvider
 
 <MudDialog>
@@ -91,7 +92,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _languages = await CategoryService.GetActiveLanguagesAsync();
+        _languages = await LanguageService.GetActiveLanguagesAsync();
         _skins = await CategoryService.GetSkinOptionsAsync();
         _parentOptions = await CategoryService.GetParentOptionsAsync(CategoryId);
 
