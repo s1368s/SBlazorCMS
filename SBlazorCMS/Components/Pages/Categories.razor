@@ -1,4 +1,6 @@
 @page "/categories"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "categories.manage")]
 
 <PageTitle>دسته‌بندی‌ها</PageTitle>
 

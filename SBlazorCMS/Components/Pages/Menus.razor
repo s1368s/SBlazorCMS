@@ -1,4 +1,6 @@
 @page "/menus"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "menus.manage")]
 
 <PageTitle>منوها</PageTitle>
 

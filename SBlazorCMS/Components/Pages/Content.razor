@@ -1,4 +1,6 @@
 @page "/content"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "content.manage")]
 
 <PageTitle>محتوا</PageTitle>
 

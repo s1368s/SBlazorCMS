@@ -1,4 +1,6 @@
 @page "/roles"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "roles.manage")]
 
 <PageTitle>نقش‌ها</PageTitle>
 

@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @using SBlazorCMS.Theme
+@inject AuthenticationStateProvider AuthStateProvider
 
 <MudThemeProvider Theme="AppTheme.Default" @bind-IsDarkMode="_isDarkMode" />
 <MudPopoverProvider />
@@ -15,16 +16,13 @@
             <MudSpacer />
             <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
                            Color="Color.Inherit" OnClick="@(() => _isDarkMode = !_isDarkMode)" />
-            <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
-                <ActivatorContent>
-                    <MudAvatar Color="Color.Secondary" Class="ms-2">م</MudAvatar>
-                </ActivatorContent>
-                <ChildContent>
-                    <MudMenuItem Icon="@Icons.Material.Filled.Person">پروفایل</MudMenuItem>
-                    <MudDivider />
-                    <MudMenuItem Icon="@Icons.Material.Filled.Logout">خروج</MudMenuItem>
-                </ChildContent>
-            </MudMenu>
+            <MudAvatar Color="Color.Secondary" Class="ms-2">@_userInitial</MudAvatar>
+            <MudText Typo="Typo.body2" Class="ms-2 me-2">@_userName</MudText>
+            <form method="post" action="/account/logout" data-enhance="false">
+                <button type="submit" class="logout-button" title="خروج">
+                    <MudIcon Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" Size="Size.Small" />
+                </button>
+            </form>
         </MudAppBar>
 
         <MudDrawer @bind-Open="_drawerOpen" Elevation="0" Variant="DrawerVariant.Responsive" ClipMode="DrawerClipMode.Always">
@@ -67,4 +65,13 @@
 @code {
     private bool _drawerOpen = true;
     private bool _isDarkMode;
+    private string _userName = string.Empty;
+    private string _userInitial = "?";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        _userName = authState.User.Identity?.Name ?? "کاربر";
+        _userInitial = _userName.Length > 0 ? _userName[0].ToString().ToUpperInvariant() : "?";
+    }
 }

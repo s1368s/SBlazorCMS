@@ -1,0 +1,56 @@
+@page "/login"
+@layout BlankLayout
+@attribute [AllowAnonymous]
+@using Microsoft.AspNetCore.Antiforgery
+@using Microsoft.AspNetCore.Authorization
+@inject IAntiforgery Antiforgery
+
+<PageTitle>ورود</PageTitle>
+
+<div class="login-page">
+    <div class="login-card">
+        <div class="login-logo">S</div>
+        <h1 class="login-title">ورود به پنل مدیریت</h1>
+        <p class="login-subtitle">SBlazorCMS</p>
+
+        @if (HasError)
+        {
+            <div class="login-alert">نام کاربری یا رمز عبور اشتباه است</div>
+        }
+
+        <form method="post" action="/account/login" data-enhance="false">
+            <input type="hidden" name="@_antiforgeryTokenName" value="@_antiforgeryTokenValue" />
+            <input type="hidden" name="returnUrl" value="@ReturnUrl" />
+
+            <label class="login-label" for="userName">نام کاربری</label>
+            <input class="login-input" type="text" id="userName" name="userName" autocomplete="username" required autofocus />
+
+            <label class="login-label" for="password">رمز عبور</label>
+            <input class="login-input" type="password" id="password" name="password" autocomplete="current-password" required />
+
+            <button class="login-button" type="submit">ورود</button>
+        </form>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    [CascadingParameter]
+    public HttpContext HttpContext { get; set; } = default!;
+
+    private bool HasError => Error == "1";
+    private string _antiforgeryTokenName = string.Empty;
+    private string _antiforgeryTokenValue = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        var tokens = Antiforgery.GetAndStoreTokens(HttpContext);
+        _antiforgeryTokenName = tokens.FormFieldName;
+        _antiforgeryTokenValue = tokens.RequestToken ?? string.Empty;
+    }
+}

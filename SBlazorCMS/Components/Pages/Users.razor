@@ -1,4 +1,6 @@
 @page "/users"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "users.manage")]
 
 <PageTitle>کاربران</PageTitle>
 

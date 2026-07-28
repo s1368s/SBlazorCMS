@@ -1,4 +1,6 @@
 @page "/settings"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "settings.manage")]
 
 <PageTitle>تنظیمات</PageTitle>
 

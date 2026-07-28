@@ -1,4 +1,6 @@
 @page "/tags"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "tags.manage")]
 
 <PageTitle>برچسب‌ها</PageTitle>
 

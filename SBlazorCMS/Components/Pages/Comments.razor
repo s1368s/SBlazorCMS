@@ -1,4 +1,6 @@
 @page "/comments"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "comments.manage")]
 
 <PageTitle>دیدگاه‌ها</PageTitle>
 

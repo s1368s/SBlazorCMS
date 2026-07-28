@@ -1,4 +1,6 @@
 @page "/"
+@rendermode InteractiveServer
+@attribute [Authorize]
 @using Microsoft.EntityFrameworkCore
 @using SBlazorCMS.Infrastructure.Persistence
 @inject IDbContextFactory<ApplicationDbContext> DbFactory

@@ -1,0 +1,101 @@
+.login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #5B4FE9 0%, #14B8A6 100%);
+    font-family: Vazirmatn, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.login-card {
+    background: #FFFFFF;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+    padding: 40px;
+    width: 100%;
+    max-width: 380px;
+    box-sizing: border-box;
+    text-align: center;
+}
+
+.login-logo {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 16px;
+    border-radius: 14px;
+    background: #5B4FE9;
+    color: #FFFFFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.login-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1F1F2E;
+    margin: 0 0 4px;
+}
+
+.login-subtitle {
+    font-size: 0.875rem;
+    color: #6B6B7B;
+    margin: 0 0 24px;
+}
+
+.login-alert {
+    background: #FDECEA;
+    color: #D32F2F;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.875rem;
+    margin-bottom: 16px;
+}
+
+.login-label {
+    display: block;
+    text-align: right;
+    font-size: 0.8rem;
+    color: #6B6B7B;
+    margin: 16px 0 6px;
+}
+
+.login-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 14px;
+    border: 1px solid #E7E7F1;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    text-align: right;
+    transition: border-color 0.15s ease;
+}
+
+.login-input:focus {
+    outline: none;
+    border-color: #5B4FE9;
+}
+
+.login-button {
+    width: 100%;
+    margin-top: 28px;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: #5B4FE9;
+    color: #FFFFFF;
+    font-size: 1rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.login-button:hover {
+    background: #4A3ED1;
+}
