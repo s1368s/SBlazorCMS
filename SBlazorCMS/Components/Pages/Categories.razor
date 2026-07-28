@@ -1,7 +1,156 @@
 @page "/categories"
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "categories.manage")]
+@using System.Security.Claims
+@using Microsoft.EntityFrameworkCore
+@using SBlazorCMS.Components.Dialogs
+@using SBlazorCMS.Infrastructure.Persistence
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <PageTitle>دسته‌بندی‌ها</PageTitle>
 
-<ComingSoonPage Title="دسته‌بندی‌ها" Icon="@Icons.Material.Filled.Category" />
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h4">دسته‌بندی‌ها</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreateDialog">
+        دسته‌بندی جدید
+    </MudButton>
+</div>
+
+<MudTable Items="_rows" Hover="true" Dense="true" Elevation="2" Loading="_loading" Class="rounded-lg">
+    <HeaderContent>
+        <MudTh>ترتیب</MudTh>
+        <MudTh>عنوان</MudTh>
+        <MudTh>دسته والد</MudTh>
+        <MudTh>تعداد نمایش</MudTh>
+        <MudTh>عملیات</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="ترتیب">@context.OrderValue</MudTd>
+        <MudTd DataLabel="عنوان">@context.Title</MudTd>
+        <MudTd DataLabel="دسته والد">@(context.ParentTitle ?? "—")</MudTd>
+        <MudTd DataLabel="تعداد نمایش">@context.ShowCount</MudTd>
+        <MudTd DataLabel="عملیات">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEditDialog(context.Id))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteAsync(context.Id))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>هنوز دسته‌بندی‌ای ثبت نشده است</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private bool _loading = true;
+    private List<CategoryRow> _rows = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var defaultLangId = await db.Languages.Where(l => l.IsDefault).Select(l => l.Id).FirstAsync();
+
+        var raw = await db.Categories
+            .Select(c => new
+            {
+                c.Id,
+                c.OrderValue,
+                c.ShowCount,
+                c.ParentId,
+                Title = c.Translations.Where(t => t.LanguageId == defaultLangId).Select(t => t.Title).FirstOrDefault()
+            })
+            .OrderBy(c => c.OrderValue)
+            .ToListAsync();
+
+        var titleById = raw.ToDictionary(c => c.Id, c => c.Title ?? "(بدون عنوان)");
+
+        _rows = raw.Select(c => new CategoryRow
+        {
+            Id = c.Id,
+            Title = titleById[c.Id],
+            OrderValue = c.OrderValue,
+            ShowCount = c.ShowCount,
+            ParentTitle = c.ParentId.HasValue && titleById.TryGetValue(c.ParentId.Value, out var pt) ? pt : null
+        }).ToList();
+
+        _loading = false;
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<CategoryEditDialog>("دسته‌بندی جدید");
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("دسته‌بندی با موفقیت ثبت شد", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task OpenEditDialog(Guid id)
+    {
+        var parameters = new DialogParameters<CategoryEditDialog> { { x => x.CategoryId, id } };
+        var dialog = await DialogService.ShowAsync<CategoryEditDialog>("ویرایش دسته‌بندی", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("تغییرات ذخیره شد", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "حذف دسته‌بندی",
+            "آیا از حذف این دسته‌بندی مطمئن هستید؟",
+            yesText: "حذف",
+            cancelText: "انصراف");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var hasChildren = await db.Categories.AnyAsync(c => c.ParentId == id);
+        if (hasChildren)
+        {
+            Snackbar.Add("این دسته‌بندی زیرمجموعه دارد؛ ابتدا زیرمجموعه‌ها را جابه‌جا یا حذف کنید", Severity.Warning);
+            return;
+        }
+
+        var category = await db.Categories.FindAsync(id);
+        if (category is null)
+        {
+            return;
+        }
+
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userIdClaim = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+        category.IsDeleted = true;
+        category.DeletedAt = DateTime.UtcNow;
+        category.DeletedBy = Guid.TryParse(userIdClaim, out var userId) ? userId : null;
+
+        await db.SaveChangesAsync();
+
+        Snackbar.Add("دسته‌بندی حذف شد", Severity.Success);
+        await LoadAsync();
+    }
+
+    private sealed class CategoryRow
+    {
+        public Guid Id { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string? ParentTitle { get; set; }
+        public int OrderValue { get; set; }
+        public int ShowCount { get; set; }
+    }
+}
