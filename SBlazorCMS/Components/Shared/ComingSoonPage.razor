@@ -1,0 +1,12 @@
+<MudText Typo="Typo.h4" Class="mb-6">@Title</MudText>
+
+<MudPaper Elevation="0" Class="pa-8 d-flex flex-column align-center justify-center" Style="border: 1px dashed var(--mud-palette-lines-default); border-radius: 12px; min-height: 300px;">
+    <MudIcon Icon="@Icon" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
+    <MudText Typo="Typo.h6">این بخش به‌زودی تکمیل می‌شود</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary">صفحهٔ «@Title» هنوز پیاده‌سازی نشده</MudText>
+</MudPaper>
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Icon { get; set; } = Icons.Material.Filled.Construction;
+}

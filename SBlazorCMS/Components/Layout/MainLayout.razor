@@ -1,9 +1,70 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@using SBlazorCMS.Theme
 
-@Body
+<MudThemeProvider Theme="AppTheme.Default" @bind-IsDarkMode="_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudRTLProvider RightToLeft="true">
+    <MudLayout>
+        <MudAppBar Elevation="1">
+            <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                           OnClick="@(() => _drawerOpen = !_drawerOpen)" />
+            <MudText Typo="Typo.h6" Class="ms-2">پنل مدیریت SBlazorCMS</MudText>
+            <MudSpacer />
+            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           Color="Color.Inherit" OnClick="@(() => _isDarkMode = !_isDarkMode)" />
+            <MudMenu AnchorOrigin="Origin.BottomLeft" TransformOrigin="Origin.TopLeft">
+                <ActivatorContent>
+                    <MudAvatar Color="Color.Secondary" Class="ms-2">م</MudAvatar>
+                </ActivatorContent>
+                <ChildContent>
+                    <MudMenuItem Icon="@Icons.Material.Filled.Person">پروفایل</MudMenuItem>
+                    <MudDivider />
+                    <MudMenuItem Icon="@Icons.Material.Filled.Logout">خروج</MudMenuItem>
+                </ChildContent>
+            </MudMenu>
+        </MudAppBar>
+
+        <MudDrawer @bind-Open="_drawerOpen" Elevation="0" Variant="DrawerVariant.Responsive" ClipMode="DrawerClipMode.Always">
+            <MudNavMenu Class="pa-2">
+                <MudNavLink Href="" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">داشبورد</MudNavLink>
+
+                <MudNavGroup Title="مدیریت محتوا" Icon="@Icons.Material.Filled.Article" Expanded="true">
+                    <MudNavLink Href="content" Icon="@Icons.Material.Filled.Description">محتوا</MudNavLink>
+                    <MudNavLink Href="categories" Icon="@Icons.Material.Filled.Category">دسته‌بندی‌ها</MudNavLink>
+                    <MudNavLink Href="tags" Icon="@Icons.Material.Filled.Sell">برچسب‌ها</MudNavLink>
+                    <MudNavLink Href="comments" Icon="@Icons.Material.Filled.Comment">دیدگاه‌ها</MudNavLink>
+                </MudNavGroup>
+
+                <MudNavLink Href="media" Icon="@Icons.Material.Filled.PermMedia">رسانه‌ها</MudNavLink>
+                <MudNavLink Href="menus" Icon="@Icons.Material.Filled.Menu">منوها</MudNavLink>
+
+                <MudNavGroup Title="کاربران و دسترسی‌ها" Icon="@Icons.Material.Filled.Group">
+                    <MudNavLink Href="users" Icon="@Icons.Material.Filled.Person">کاربران</MudNavLink>
+                    <MudNavLink Href="roles" Icon="@Icons.Material.Filled.AdminPanelSettings">نقش‌ها</MudNavLink>
+                </MudNavGroup>
+
+                <MudNavLink Href="settings" Icon="@Icons.Material.Filled.Settings">تنظیمات</MudNavLink>
+            </MudNavMenu>
+        </MudDrawer>
+
+        <MudMainContent>
+            <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="mt-4 pb-8">
+                @Body
+            </MudContainer>
+        </MudMainContent>
+    </MudLayout>
+</MudRTLProvider>
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool _isDarkMode;
+}

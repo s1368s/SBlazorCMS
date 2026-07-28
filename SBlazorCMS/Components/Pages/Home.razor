@@ -1,7 +1,56 @@
-﻿@page "/"
+@page "/"
+@using Microsoft.EntityFrameworkCore
+@using SBlazorCMS.Infrastructure.Persistence
+@inject IDbContextFactory<ApplicationDbContext> DbFactory
 
-<PageTitle>Home</PageTitle>
+<PageTitle>داشبورد</PageTitle>
 
-<h1>Hello, world!</h1>
+<MudText Typo="Typo.h4" Class="mb-1">داشبورد</MudText>
+<MudText Typo="Typo.body1" Class="mb-6" Color="Color.Secondary">خوش آمدید به پنل مدیریت محتوا</MudText>
 
-Welcome to your new app.
+<MudGrid>
+    @foreach (var tile in _tiles)
+    {
+        <MudItem xs="12" sm="6" md="3">
+            <MudPaper Elevation="2" Class="pa-4 d-flex align-center" Style="border-radius: 12px;">
+                <MudAvatar Color="tile.Color" Variant="Variant.Filled" Size="Size.Large" Class="me-4">
+                    <MudIcon Icon="@tile.Icon" />
+                </MudAvatar>
+                <div>
+                    <MudText Typo="Typo.h5" Class="fw-bold">@tile.Value</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@tile.Label</MudText>
+                </div>
+            </MudPaper>
+        </MudItem>
+    }
+</MudGrid>
+
+<MudPaper Elevation="0" Class="pa-8 mt-8 d-flex flex-column align-center justify-center" Style="border: 1px dashed var(--mud-palette-lines-default); border-radius: 12px;">
+    <MudIcon Icon="@Icons.Material.Filled.Construction" Size="Size.Large" Color="Color.Secondary" Class="mb-2" />
+    <MudText Typo="Typo.h6">بخش محتوا، دسته‌بندی و کاربران به‌زودی اینجا پیاده‌سازی می‌شن</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary">این فقط چیدمان اولیهٔ پنل با MudBlazor هست</MudText>
+</MudPaper>
+
+@code {
+    private List<StatTile> _tiles = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+
+        var contentCount = await db.Contents.CountAsync();
+        var categoryCount = await db.Categories.CountAsync();
+        var userCount = await db.Users.CountAsync();
+        var pendingCommentCount = await db.Comments.CountAsync(c => !c.IsApproved);
+
+        _tiles =
+        [
+            new StatTile("تعداد محتوا", contentCount, Icons.Material.Filled.Article, Color.Primary),
+            new StatTile("دسته‌بندی‌ها", categoryCount, Icons.Material.Filled.Category, Color.Info),
+            new StatTile("کاربران", userCount, Icons.Material.Filled.Group, Color.Secondary),
+            new StatTile("دیدگاه‌های در انتظار تایید", pendingCommentCount, Icons.Material.Filled.Comment, Color.Warning)
+        ];
+    }
+
+    private sealed record StatTile(string Label, int Value, string Icon, Color Color);
+}
