@@ -7,14 +7,6 @@ namespace SBlazorCMS.Infrastructure.Services.Categories;
 
 public class CategoryService(IDbContextFactory<ApplicationDbContext> dbFactory, ILanguageService languageService) : ICategoryService
 {
-    public async Task<List<SkinOptionDto>> GetSkinOptionsAsync()
-    {
-        await using var db = await dbFactory.CreateDbContextAsync();
-        return await db.Skins
-            .Select(s => new SkinOptionDto(s.Id, s.Title))
-            .ToListAsync();
-    }
-
     public async Task<List<CategoryListItemDto>> GetListAsync()
     {
         await using var db = await dbFactory.CreateDbContextAsync();

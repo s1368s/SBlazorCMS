@@ -1,0 +1,231 @@
+@page "/content/new"
+@page "/content/{Id:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "content.manage")]
+@using System.Security.Claims
+@using SBlazorCMS.Domain
+@using SBlazorCMS.Infrastructure.Services.Categories
+@using SBlazorCMS.Infrastructure.Services.Common
+@using SBlazorCMS.Infrastructure.Services.Contents
+@using SBlazorCMS.Infrastructure.Services.Skins
+@using SBlazorCMS.Infrastructure.Services.Tags
+@inject IContentService ContentService
+@inject ICategoryService CategoryService
+@inject ITagService TagService
+@inject ISkinService SkinService
+@inject ILanguageService LanguageService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject ISnackbar Snackbar
+
+<PageTitle>@(_isNew ? "محتوای جدید" : "ویرایش محتوا")</PageTitle>
+
+@if (_loading)
+{
+    <div class="d-flex justify-center pa-8">
+        <MudProgressCircular Indeterminate="true" />
+    </div>
+}
+else
+{
+    <div class="d-flex align-center justify-space-between mb-4">
+        <div class="d-flex align-center">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowForward" OnClick="@(() => Navigation.NavigateTo("content"))" Class="me-2" />
+            <MudText Typo="Typo.h4">@(_isNew ? "محتوای جدید" : "ویرایش محتوا")</MudText>
+        </div>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Save" Disabled="_saving">ذخیره</MudButton>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <MudAlert Severity="Severity.Error" Class="mb-4">@_errorMessage</MudAlert>
+    }
+
+    <MudGrid Spacing="4">
+        <MudItem xs="12" md="8">
+            <MudPaper Elevation="2" Class="pa-4 rounded-lg">
+                <MudTabs Elevation="0" Rounded="true" ApplyEffectsToContainer="true">
+                    @foreach (var lang in _languages)
+                    {
+                        <MudTabPanel Text="@lang.Name">
+                            <MudTextField Label="عنوان" @bind-Value="_translations[lang.Id].Title"
+                                          Required="@lang.IsDefault" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3 mt-3" />
+                            <MudTextField Label="نامک (Slug)" @bind-Value="_translations[lang.Id].Slug"
+                                          Required="@lang.IsDefault" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+                            <MudTextField Label="پیش‌عنوان" @bind-Value="_translations[lang.Id].PreTitle"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+                            <MudTextField Label="خلاصه" @bind-Value="_translations[lang.Id].Summary"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" Lines="3" Class="mb-3" />
+
+                            <RichTextEditor Label="بدنه" @bind-Value="_translations[lang.Id].Body" />
+
+                            <MudTextField Label="عنوان سئو (SEO Title)" @bind-Value="_translations[lang.Id].SeoTitle"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3 mt-4" />
+                            <MudTextField Label="توضیحات سئو (SEO Description)" @bind-Value="_translations[lang.Id].SeoDescription"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" Class="mb-3" />
+                            <MudTextField Label="اطلاعات اضافه" @bind-Value="_translations[lang.Id].Extra"
+                                          Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
+                        </MudTabPanel>
+                    }
+                </MudTabs>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="4">
+            <MudPaper Elevation="2" Class="pa-4 rounded-lg mb-4">
+                <MudText Typo="Typo.subtitle2" Class="mb-3">انتشار</MudText>
+                <MudSelect T="ContentStatus" Label="وضعیت" @bind-Value="_status" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
+                    <MudSelectItem T="ContentStatus" Value="ContentStatus.Draft">پیش‌نویس</MudSelectItem>
+                    <MudSelectItem T="ContentStatus" Value="ContentStatus.Pending">در انتظار بررسی</MudSelectItem>
+                    <MudSelectItem T="ContentStatus" Value="ContentStatus.Published">منتشر شده</MudSelectItem>
+                    <MudSelectItem T="ContentStatus" Value="ContentStatus.Archived">بایگانی شده</MudSelectItem>
+                </MudSelect>
+                <MudDatePicker Label="تاریخ انتشار" @bind-Date="_publishDate" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+                <MudNumericField T="int" Label="ترتیب نمایش" @bind-Value="_orderValue" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudPaper>
+
+            <MudPaper Elevation="2" Class="pa-4 rounded-lg mb-4">
+                <MudText Typo="Typo.subtitle2" Class="mb-3">تصاویر</MudText>
+                <MudTextField Label="تصویر بزرگ (URL)" @bind-Value="_bigImg" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+                <MudTextField Label="تصویر کوچک (URL)" @bind-Value="_smallImg" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudPaper>
+
+            <MudPaper Elevation="2" Class="pa-4 rounded-lg mb-4">
+                <MudText Typo="Typo.subtitle2" Class="mb-3">دسته‌بندی و برچسب</MudText>
+                <MudSelect T="Guid" Label="دسته‌بندی‌ها" MultiSelection="true" @bind-SelectedValues="_selectedCategoryIds"
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
+                    @foreach (var category in _categoryOptions)
+                    {
+                        <MudSelectItem T="Guid" Value="category.Id">@category.Title</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="Guid" Label="برچسب‌ها" MultiSelection="true" @bind-SelectedValues="_selectedTagIds"
+                           Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var tag in _tagOptions)
+                    {
+                        <MudSelectItem T="Guid" Value="tag.Id">@tag.Title</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudPaper>
+
+            <MudPaper Elevation="2" Class="pa-4 rounded-lg">
+                <MudText Typo="Typo.subtitle2" Class="mb-3">قالب</MudText>
+                <MudSelect T="Guid?" Label="قالب (Skin)" @bind-Value="_skinId" Clearable="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var skin in _skinOptions)
+                    {
+                        <MudSelectItem T="Guid?" Value="skin.Id">@skin.Title</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private bool _isNew => Id == Guid.Empty;
+    private bool _loading = true;
+    private bool _saving;
+    private string? _errorMessage;
+
+    private ContentStatus _status = ContentStatus.Draft;
+    private DateTime? _publishDate;
+    private int _orderValue;
+    private string _bigImg = string.Empty;
+    private string _smallImg = string.Empty;
+    private Guid? _skinId;
+
+    private List<LanguageDto> _languages = [];
+    private List<CategoryOptionDto> _categoryOptions = [];
+    private List<TagListItemDto> _tagOptions = [];
+    private List<SkinListItemDto> _skinOptions = [];
+
+    private IReadOnlyCollection<Guid> _selectedCategoryIds = [];
+    private IReadOnlyCollection<Guid> _selectedTagIds = [];
+
+    private readonly Dictionary<Guid, ContentTranslationInput> _translations = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _languages = await LanguageService.GetActiveLanguagesAsync();
+        _categoryOptions = await CategoryService.GetParentOptionsAsync(null);
+        _tagOptions = await TagService.GetListAsync();
+        _skinOptions = await SkinService.GetListAsync();
+
+        foreach (var lang in _languages)
+        {
+            _translations[lang.Id] = new ContentTranslationInput();
+        }
+
+        if (!_isNew)
+        {
+            var editDto = await ContentService.GetForEditAsync(Id);
+            if (editDto is null)
+            {
+                _errorMessage = "محتوا یافت نشد";
+            }
+            else
+            {
+                _status = editDto.Status;
+                _publishDate = editDto.PublishDate;
+                _bigImg = editDto.BigImg;
+                _smallImg = editDto.SmallImg;
+                _orderValue = editDto.OrderValue;
+                _skinId = editDto.SkinId;
+                _selectedCategoryIds = editDto.CategoryIds;
+                _selectedTagIds = editDto.TagIds;
+
+                foreach (var (languageId, translation) in editDto.Translations)
+                {
+                    _translations[languageId] = translation;
+                }
+            }
+        }
+
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        _saving = true;
+        _errorMessage = null;
+
+        var userId = await GetCurrentUserIdAsync();
+
+        var request = new ContentSaveRequest
+        {
+            ContentId = _isNew ? null : Id,
+            Status = _status,
+            PublishDate = _publishDate,
+            BigImg = _bigImg,
+            SmallImg = _smallImg,
+            OrderValue = _orderValue,
+            SkinId = _skinId,
+            CategoryIds = _selectedCategoryIds.ToList(),
+            TagIds = _selectedTagIds.ToList(),
+            Translations = _translations,
+            CurrentUserId = userId
+        };
+
+        var result = await ContentService.SaveAsync(request);
+
+        if (result.Success)
+        {
+            Snackbar.Add(_isNew ? "محتوا با موفقیت ثبت شد" : "تغییرات ذخیره شد", Severity.Success);
+            Navigation.NavigateTo("content");
+        }
+        else
+        {
+            _errorMessage = result.ErrorMessage;
+            _saving = false;
+        }
+    }
+
+    private async Task<Guid?> GetCurrentUserIdAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var idClaim = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(idClaim, out var id) ? id : null;
+    }
+}

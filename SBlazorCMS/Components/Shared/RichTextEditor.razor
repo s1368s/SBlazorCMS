@@ -1,0 +1,61 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div class="rich-text-editor">
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mb-1">@Label</MudText>
+    }
+    <div @ref="_editorContainerRef" dir="rtl" style="min-height: 260px; background: var(--mud-palette-surface);"></div>
+</div>
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public string? Label { get; set; }
+
+    private ElementReference _editorContainerRef;
+    private IJSObjectReference? _module;
+    private IJSObjectReference? _editorHandle;
+    private DotNetObjectReference<RichTextEditor>? _dotNetRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _module = await JS.InvokeAsync<IJSObjectReference>("import", "./Components/Shared/RichTextEditor.razor.js");
+            _dotNetRef = DotNetObjectReference.Create(this);
+            _editorHandle = await _module.InvokeAsync<IJSObjectReference>("initEditor", _editorContainerRef, Value ?? string.Empty, _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnContentChanged(string html)
+    {
+        Value = html;
+        await ValueChanged.InvokeAsync(html);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (_editorHandle is not null)
+            {
+                await _editorHandle.InvokeVoidAsync("dispose");
+                await _editorHandle.DisposeAsync();
+            }
+
+            if (_module is not null)
+            {
+                await _module.DisposeAsync();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit already gone; nothing to clean up client-side.
+        }
+
+        _dotNetRef?.Dispose();
+    }
+}

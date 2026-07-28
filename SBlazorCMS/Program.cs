@@ -10,6 +10,9 @@ using SBlazorCMS.Endpoints;
 using SBlazorCMS.Infrastructure.Persistence;
 using SBlazorCMS.Infrastructure.Services.Categories;
 using SBlazorCMS.Infrastructure.Services.Common;
+using SBlazorCMS.Infrastructure.Services.Contents;
+using SBlazorCMS.Infrastructure.Services.MenuItems;
+using SBlazorCMS.Infrastructure.Services.Menus;
 using SBlazorCMS.Infrastructure.Services.Skins;
 using SBlazorCMS.Infrastructure.Services.Tags;
 
@@ -31,6 +34,9 @@ builder.Services.AddScoped<ILanguageService, LanguageService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<ISkinService, SkinService>();
+builder.Services.AddScoped<IContentService, ContentService>();
+builder.Services.AddScoped<IMenuService, MenuService>();
+builder.Services.AddScoped<IMenuItemService, MenuItemService>();
 
 builder.Services.AddAntiforgery();
 

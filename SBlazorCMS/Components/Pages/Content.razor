@@ -1,7 +1,104 @@
 @page "/content"
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "content.manage")]
+@using SBlazorCMS.Domain
+@using SBlazorCMS.Infrastructure.Services.Contents
+@inject IContentService ContentService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <PageTitle>محتوا</PageTitle>
 
-<ComingSoonPage Title="محتوا" Icon="@Icons.Material.Filled.Article" />
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h4">محتوا</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="@(() => Navigation.NavigateTo("content/new"))">
+        محتوای جدید
+    </MudButton>
+</div>
+
+<MudTable Items="_rows" Hover="true" Dense="true" Elevation="2" Loading="_loading" Class="rounded-lg">
+    <HeaderContent>
+        <MudTh>عنوان</MudTh>
+        <MudTh>وضعیت</MudTh>
+        <MudTh>تاریخ انتشار</MudTh>
+        <MudTh>ترتیب</MudTh>
+        <MudTh>عملیات</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="عنوان">@context.Title</MudTd>
+        <MudTd DataLabel="وضعیت">
+            <MudChip T="string" Size="Size.Small" Color="@StatusColor(context.Status)">@StatusText(context.Status)</MudChip>
+        </MudTd>
+        <MudTd DataLabel="تاریخ انتشار">@(context.PublishDate?.ToString("yyyy/MM/dd") ?? "—")</MudTd>
+        <MudTd DataLabel="ترتیب">@context.OrderValue</MudTd>
+        <MudTd DataLabel="عملیات">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => Navigation.NavigateTo($"content/{context.Id}"))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteAsync(context.Id))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>هنوز محتوایی ثبت نشده است</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private bool _loading = true;
+    private List<ContentListItemDto> _rows = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _rows = await ContentService.GetListAsync();
+        _loading = false;
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "حذف محتوا",
+            "آیا از حذف این محتوا مطمئن هستید؟",
+            yesText: "حذف",
+            cancelText: "انصراف");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userIdClaim = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = Guid.TryParse(userIdClaim, out var parsedId) ? parsedId : (Guid?)null;
+
+        var result = await ContentService.DeleteAsync(id, userId);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.ErrorMessage!, Severity.Warning);
+            return;
+        }
+
+        Snackbar.Add("محتوا حذف شد", Severity.Success);
+        await LoadAsync();
+    }
+
+    private static string StatusText(ContentStatus status) => status switch
+    {
+        ContentStatus.Draft => "پیش‌نویس",
+        ContentStatus.Pending => "در انتظار بررسی",
+        ContentStatus.Published => "منتشر شده",
+        ContentStatus.Archived => "بایگانی شده",
+        _ => status.ToString()
+    };
+
+    private static Color StatusColor(ContentStatus status) => status switch
+    {
+        ContentStatus.Draft => Color.Default,
+        ContentStatus.Pending => Color.Warning,
+        ContentStatus.Published => Color.Success,
+        ContentStatus.Archived => Color.Secondary,
+        _ => Color.Default
+    };
+}

@@ -1,76 +1,91 @@
-@page "/menus"
+@page "/menus/{MenuId:guid}/items"
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "menus.manage")]
 @using SBlazorCMS.Components.Dialogs
+@using SBlazorCMS.Infrastructure.Services.MenuItems
 @using SBlazorCMS.Infrastructure.Services.Menus
+@inject IMenuItemService MenuItemService
 @inject IMenuService MenuService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
 
-<PageTitle>منوها</PageTitle>
+<PageTitle>آیتم‌های منو</PageTitle>
 
 <div class="d-flex align-center justify-space-between mb-4">
-    <MudText Typo="Typo.h4">منوها</MudText>
+    <div class="d-flex align-center">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowForward" OnClick="@(() => Navigation.NavigateTo("menus"))" Class="me-2" />
+        <MudText Typo="Typo.h4">آیتم‌های منو: @_menuName</MudText>
+    </div>
     <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreateDialog">
-        منوی جدید
+        آیتم جدید
     </MudButton>
 </div>
 
 <MudTable Items="_rows" Hover="true" Dense="true" Elevation="2" Loading="_loading" Class="rounded-lg">
     <HeaderContent>
-        <MudTh>نام</MudTh>
-        <MudTh>توضیحات</MudTh>
-        <MudTh>جایگاه</MudTh>
-        <MudTh>تعداد آیتم</MudTh>
+        <MudTh>عنوان</MudTh>
+        <MudTh>آدرس (Url)</MudTh>
+        <MudTh>والد</MudTh>
+        <MudTh>ترتیب</MudTh>
         <MudTh>عملیات</MudTh>
     </HeaderContent>
     <RowTemplate>
-        <MudTd DataLabel="نام">@context.Name</MudTd>
-        <MudTd DataLabel="توضیحات">@context.Description</MudTd>
-        <MudTd DataLabel="جایگاه">@context.Location</MudTd>
-        <MudTd DataLabel="تعداد آیتم">@context.ItemCount</MudTd>
+        <MudTd DataLabel="عنوان">@context.Title</MudTd>
+        <MudTd DataLabel="آدرس (Url)">@context.Url</MudTd>
+        <MudTd DataLabel="والد">@(context.ParentTitle ?? "—")</MudTd>
+        <MudTd DataLabel="ترتیب">@context.Order</MudTd>
         <MudTd DataLabel="عملیات">
-            <MudIconButton Icon="@Icons.Material.Filled.List" Size="Size.Small" title="مدیریت آیتم‌ها"
-                           OnClick="@(() => Navigation.NavigateTo($"menus/{context.Id}/items"))" />
             <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEditDialog(context.Id))" />
             <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteAsync(context.Id))" />
         </MudTd>
     </RowTemplate>
     <NoRecordsContent>
-        <MudText>هنوز منویی ثبت نشده است</MudText>
+        <MudText>هنوز آیتمی ثبت نشده است</MudText>
     </NoRecordsContent>
 </MudTable>
 
 @code {
-    private bool _loading = true;
-    private List<MenuListItemDto> _rows = [];
+    [Parameter] public Guid MenuId { get; set; }
 
-    protected override async Task OnInitializedAsync() => await LoadAsync();
+    private bool _loading = true;
+    private string _menuName = string.Empty;
+    private List<MenuItemListItemDto> _rows = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _menuName = await MenuService.GetNameAsync(MenuId) ?? "(نامشخص)";
+        await LoadAsync();
+    }
 
     private async Task LoadAsync()
     {
         _loading = true;
-        _rows = await MenuService.GetListAsync();
+        _rows = await MenuItemService.GetListByMenuAsync(MenuId);
         _loading = false;
     }
 
     private async Task OpenCreateDialog()
     {
-        var dialog = await DialogService.ShowAsync<MenuEditDialog>("منوی جدید");
+        var parameters = new DialogParameters<MenuItemEditDialog> { { x => x.MenuId, MenuId } };
+        var dialog = await DialogService.ShowAsync<MenuItemEditDialog>("آیتم جدید", parameters);
         var result = await dialog.Result;
         if (result is { Canceled: false })
         {
-            Snackbar.Add("منو با موفقیت ثبت شد", Severity.Success);
+            Snackbar.Add("آیتم با موفقیت ثبت شد", Severity.Success);
             await LoadAsync();
         }
     }
 
     private async Task OpenEditDialog(Guid id)
     {
-        var parameters = new DialogParameters<MenuEditDialog> { { x => x.MenuId, id } };
-        var dialog = await DialogService.ShowAsync<MenuEditDialog>("ویرایش منو", parameters);
+        var parameters = new DialogParameters<MenuItemEditDialog>
+        {
+            { x => x.MenuId, MenuId },
+            { x => x.MenuItemId, id }
+        };
+        var dialog = await DialogService.ShowAsync<MenuItemEditDialog>("ویرایش آیتم", parameters);
         var result = await dialog.Result;
         if (result is { Canceled: false })
         {
@@ -82,8 +97,8 @@
     private async Task DeleteAsync(Guid id)
     {
         var confirmed = await DialogService.ShowMessageBoxAsync(
-            "حذف منو",
-            "آیا از حذف این منو مطمئن هستید؟",
+            "حذف آیتم",
+            "آیا از حذف این آیتم مطمئن هستید؟",
             yesText: "حذف",
             cancelText: "انصراف");
 
@@ -96,14 +111,14 @@
         var userIdClaim = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var userId = Guid.TryParse(userIdClaim, out var parsedId) ? parsedId : (Guid?)null;
 
-        var result = await MenuService.DeleteAsync(id, userId);
+        var result = await MenuItemService.DeleteAsync(id, userId);
         if (!result.Success)
         {
             Snackbar.Add(result.ErrorMessage!, Severity.Warning);
             return;
         }
 
-        Snackbar.Add("منو حذف شد", Severity.Success);
+        Snackbar.Add("آیتم حذف شد", Severity.Success);
         await LoadAsync();
     }
 }

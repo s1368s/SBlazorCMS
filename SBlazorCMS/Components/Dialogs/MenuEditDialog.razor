@@ -1,0 +1,102 @@
+@using System.Security.Claims
+@using SBlazorCMS.Infrastructure.Services.Menus
+@inject IMenuService MenuService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isNew ? "افزودن منو" : "ویرایش منو")</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="d-flex justify-center pa-4">
+                <MudProgressCircular Indeterminate="true" />
+            </div>
+        }
+        else
+        {
+            <MudTextField Label="نام" @bind-Value="_name" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+            <MudTextField Label="جایگاه (مثلاً header یا footer)" @bind-Value="_location" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+            <MudTextField Label="توضیحات" @bind-Value="_description" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-3">@_errorMessage</MudAlert>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">انصراف</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save" Disabled="_saving">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Guid? MenuId { get; set; }
+
+    private bool _isNew => MenuId is null;
+    private bool _loading = true;
+    private bool _saving;
+    private string? _errorMessage;
+
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+    private string _location = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (MenuId is { } id)
+        {
+            var editDto = await MenuService.GetForEditAsync(id);
+            if (editDto is not null)
+            {
+                _name = editDto.Name;
+                _description = editDto.Description;
+                _location = editDto.Location;
+            }
+        }
+
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        _saving = true;
+        _errorMessage = null;
+
+        var userId = await GetCurrentUserIdAsync();
+
+        var request = new MenuSaveRequest
+        {
+            MenuId = MenuId,
+            Name = _name,
+            Description = _description,
+            Location = _location,
+            CurrentUserId = userId
+        };
+
+        var result = await MenuService.SaveAsync(request);
+
+        if (result.Success)
+        {
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        else
+        {
+            _errorMessage = result.ErrorMessage;
+        }
+
+        _saving = false;
+    }
+
+    private async Task<Guid?> GetCurrentUserIdAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var idClaim = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(idClaim, out var id) ? id : null;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

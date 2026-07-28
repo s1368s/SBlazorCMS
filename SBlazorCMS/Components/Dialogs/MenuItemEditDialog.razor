@@ -1,15 +1,13 @@
 @using System.Security.Claims
-@using SBlazorCMS.Infrastructure.Services.Categories
 @using SBlazorCMS.Infrastructure.Services.Common
-@using SBlazorCMS.Infrastructure.Services.Skins
-@inject ICategoryService CategoryService
+@using SBlazorCMS.Infrastructure.Services.MenuItems
+@inject IMenuItemService MenuItemService
 @inject ILanguageService LanguageService
-@inject ISkinService SkinService
 @inject AuthenticationStateProvider AuthStateProvider
 
 <MudDialog>
     <TitleContent>
-        <MudText Typo="Typo.h6">@(_isNew ? "افزودن دسته‌بندی" : "ویرایش دسته‌بندی")</MudText>
+        <MudText Typo="Typo.h6">@(_isNew ? "افزودن آیتم" : "ویرایش آیتم")</MudText>
     </TitleContent>
     <DialogContent>
         @if (_loading)
@@ -22,7 +20,7 @@
         {
             <MudGrid Spacing="4">
                 <MudItem xs="12" sm="6">
-                    <MudSelect T="Guid?" Label="دسته والد" @bind-Value="_parentId" Clearable="true" Dense="true" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelect T="Guid?" Label="آیتم والد" @bind-Value="_parentId" Clearable="true" Dense="true" Variant="Variant.Outlined" Margin="Margin.Dense">
                         @foreach (var option in _parentOptions)
                         {
                             <MudSelectItem T="Guid?" Value="option.Id">@option.Title</MudSelectItem>
@@ -30,18 +28,16 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudSelect T="Guid?" Label="قالب (Skin)" @bind-Value="_skinId" Clearable="true" Dense="true" Variant="Variant.Outlined" Margin="Margin.Dense">
-                        @foreach (var skin in _skins)
-                        {
-                            <MudSelectItem T="Guid?" Value="skin.Id">@skin.Title</MudSelectItem>
-                        }
-                    </MudSelect>
+                    <MudNumericField T="int" Label="ترتیب" @bind-Value="_order" Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
-                <MudItem xs="6" sm="3">
-                    <MudNumericField T="int" Label="ترتیب نمایش" @bind-Value="_orderValue" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudItem xs="12">
+                    <MudTextField Label="آدرس (Url)" @bind-Value="_url" Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
-                <MudItem xs="6" sm="3">
-                    <MudNumericField T="int" Label="تعداد نمایش" @bind-Value="_showCount" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudItem xs="12">
+                    <MudTextField Label="آدرس تصویر (ImgUrl)" @bind-Value="_imgUrl" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField Label="اطلاعات اضافه" @bind-Value="_extra" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
                 </MudItem>
 
                 <MudItem xs="12">
@@ -51,10 +47,6 @@
                             <MudTabPanel Text="@lang.Name">
                                 <MudTextField Label="عنوان" @bind-Value="_translations[lang.Id].Title"
                                               Required="@lang.IsDefault" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3 mt-3" />
-                                <MudTextField Label="نامک (Slug)" @bind-Value="_translations[lang.Id].Slug"
-                                              Required="@lang.IsDefault" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
-                                <MudTextField Label="توضیحات" @bind-Value="_translations[lang.Id].Description"
-                                              Variant="Variant.Outlined" Margin="Margin.Dense" Lines="3" />
                             </MudTabPanel>
                         }
                     </MudTabs>
@@ -75,43 +67,44 @@
 
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
-    [Parameter] public Guid? CategoryId { get; set; }
+    [Parameter] public Guid MenuId { get; set; }
+    [Parameter] public Guid? MenuItemId { get; set; }
 
-    private bool _isNew => CategoryId is null;
+    private bool _isNew => MenuItemId is null;
     private bool _loading = true;
     private bool _saving;
     private string? _errorMessage;
 
     private Guid? _parentId;
-    private Guid? _skinId;
-    private int _orderValue;
-    private int _showCount;
+    private string _url = string.Empty;
+    private string _imgUrl = string.Empty;
+    private string _extra = string.Empty;
+    private int _order;
 
     private List<LanguageDto> _languages = [];
-    private List<CategoryOptionDto> _parentOptions = [];
-    private List<SkinListItemDto> _skins = [];
-    private readonly Dictionary<Guid, CategoryTranslationInput> _translations = [];
+    private List<MenuItemOptionDto> _parentOptions = [];
+    private readonly Dictionary<Guid, MenuItemTranslationInput> _translations = [];
 
     protected override async Task OnInitializedAsync()
     {
         _languages = await LanguageService.GetActiveLanguagesAsync();
-        _skins = await SkinService.GetListAsync();
-        _parentOptions = await CategoryService.GetParentOptionsAsync(CategoryId);
+        _parentOptions = await MenuItemService.GetParentOptionsAsync(MenuId, MenuItemId);
 
         foreach (var lang in _languages)
         {
-            _translations[lang.Id] = new CategoryTranslationInput();
+            _translations[lang.Id] = new MenuItemTranslationInput();
         }
 
-        if (CategoryId is { } id)
+        if (MenuItemId is { } id)
         {
-            var editDto = await CategoryService.GetForEditAsync(id);
+            var editDto = await MenuItemService.GetForEditAsync(id);
             if (editDto is not null)
             {
                 _parentId = editDto.ParentId;
-                _skinId = editDto.SkinId;
-                _orderValue = editDto.OrderValue;
-                _showCount = editDto.ShowCount;
+                _url = editDto.Url;
+                _imgUrl = editDto.ImgUrl;
+                _extra = editDto.Extra;
+                _order = editDto.Order;
                 foreach (var (languageId, translation) in editDto.Translations)
                 {
                     _translations[languageId] = translation;
@@ -129,18 +122,20 @@
 
         var userId = await GetCurrentUserIdAsync();
 
-        var request = new CategorySaveRequest
+        var request = new MenuItemSaveRequest
         {
-            CategoryId = CategoryId,
+            MenuItemId = MenuItemId,
+            MenuId = MenuId,
             ParentId = _parentId,
-            SkinId = _skinId,
-            OrderValue = _orderValue,
-            ShowCount = _showCount,
+            Url = _url,
+            ImgUrl = _imgUrl,
+            Extra = _extra,
+            Order = _order,
             Translations = _translations,
             CurrentUserId = userId
         };
 
-        var result = await CategoryService.SaveAsync(request);
+        var result = await MenuItemService.SaveAsync(request);
 
         if (result.Success)
         {
