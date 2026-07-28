@@ -2,10 +2,9 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "categories.manage")]
 @using System.Security.Claims
-@using Microsoft.EntityFrameworkCore
 @using SBlazorCMS.Components.Dialogs
-@using SBlazorCMS.Infrastructure.Persistence
-@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@using SBlazorCMS.Infrastructure.Services.Categories
+@inject ICategoryService CategoryService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IDialogService DialogService
 @inject ISnackbar Snackbar
@@ -44,40 +43,14 @@
 
 @code {
     private bool _loading = true;
-    private List<CategoryRow> _rows = [];
+    private List<CategoryListItemDto> _rows = [];
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task LoadAsync()
     {
         _loading = true;
-
-        await using var db = await DbFactory.CreateDbContextAsync();
-        var defaultLangId = await db.Languages.Where(l => l.IsDefault).Select(l => l.Id).FirstAsync();
-
-        var raw = await db.Categories
-            .Select(c => new
-            {
-                c.Id,
-                c.OrderValue,
-                c.ShowCount,
-                c.ParentId,
-                Title = c.Translations.Where(t => t.LanguageId == defaultLangId).Select(t => t.Title).FirstOrDefault()
-            })
-            .OrderBy(c => c.OrderValue)
-            .ToListAsync();
-
-        var titleById = raw.ToDictionary(c => c.Id, c => c.Title ?? "(بدون عنوان)");
-
-        _rows = raw.Select(c => new CategoryRow
-        {
-            Id = c.Id,
-            Title = titleById[c.Id],
-            OrderValue = c.OrderValue,
-            ShowCount = c.ShowCount,
-            ParentTitle = c.ParentId.HasValue && titleById.TryGetValue(c.ParentId.Value, out var pt) ? pt : null
-        }).ToList();
-
+        _rows = await CategoryService.GetListAsync();
         _loading = false;
     }
 
@@ -117,40 +90,18 @@
             return;
         }
 
-        await using var db = await DbFactory.CreateDbContextAsync();
-
-        var hasChildren = await db.Categories.AnyAsync(c => c.ParentId == id);
-        if (hasChildren)
-        {
-            Snackbar.Add("این دسته‌بندی زیرمجموعه دارد؛ ابتدا زیرمجموعه‌ها را جابه‌جا یا حذف کنید", Severity.Warning);
-            return;
-        }
-
-        var category = await db.Categories.FindAsync(id);
-        if (category is null)
-        {
-            return;
-        }
-
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         var userIdClaim = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var userId = Guid.TryParse(userIdClaim, out var parsedId) ? parsedId : (Guid?)null;
 
-        category.IsDeleted = true;
-        category.DeletedAt = DateTime.UtcNow;
-        category.DeletedBy = Guid.TryParse(userIdClaim, out var userId) ? userId : null;
-
-        await db.SaveChangesAsync();
+        var result = await CategoryService.DeleteAsync(id, userId);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.ErrorMessage!, Severity.Warning);
+            return;
+        }
 
         Snackbar.Add("دسته‌بندی حذف شد", Severity.Success);
         await LoadAsync();
-    }
-
-    private sealed class CategoryRow
-    {
-        public Guid Id { get; set; }
-        public string Title { get; set; } = string.Empty;
-        public string? ParentTitle { get; set; }
-        public int OrderValue { get; set; }
-        public int ShowCount { get; set; }
     }
 }

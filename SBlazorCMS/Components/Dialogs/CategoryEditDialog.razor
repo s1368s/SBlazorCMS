@@ -1,8 +1,7 @@
 @using System.Security.Claims
-@using Microsoft.EntityFrameworkCore
-@using SBlazorCMS.Domain
-@using SBlazorCMS.Infrastructure.Persistence
-@inject IDbContextFactory<ApplicationDbContext> DbFactory
+@using SBlazorCMS.Infrastructure.Services.Categories
+@using SBlazorCMS.Infrastructure.Services.Common
+@inject ICategoryService CategoryService
 @inject AuthenticationStateProvider AuthStateProvider
 
 <MudDialog>
@@ -18,9 +17,9 @@
         }
         else
         {
-            <MudGrid>
+            <MudGrid Spacing="4">
                 <MudItem xs="12" sm="6">
-                    <MudSelect T="Guid?" Label="دسته والد" @bind-Value="_parentId" Clearable="true" Dense="true">
+                    <MudSelect T="Guid?" Label="دسته والد" @bind-Value="_parentId" Clearable="true" Dense="true" Variant="Variant.Outlined" Margin="Margin.Dense">
                         @foreach (var option in _parentOptions)
                         {
                             <MudSelectItem T="Guid?" Value="option.Id">@option.Title</MudSelectItem>
@@ -28,7 +27,7 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="12" sm="6">
-                    <MudSelect T="Guid?" Label="قالب (Skin)" @bind-Value="_skinId" Clearable="true" Dense="true">
+                    <MudSelect T="Guid?" Label="قالب (Skin)" @bind-Value="_skinId" Clearable="true" Dense="true" Variant="Variant.Outlined" Margin="Margin.Dense">
                         @foreach (var skin in _skins)
                         {
                             <MudSelectItem T="Guid?" Value="skin.Id">@skin.Title</MudSelectItem>
@@ -36,10 +35,10 @@
                     </MudSelect>
                 </MudItem>
                 <MudItem xs="6" sm="3">
-                    <MudNumericField T="int" Label="ترتیب نمایش" @bind-Value="_orderValue" />
+                    <MudNumericField T="int" Label="ترتیب نمایش" @bind-Value="_orderValue" Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
                 <MudItem xs="6" sm="3">
-                    <MudNumericField T="int" Label="تعداد نمایش" @bind-Value="_showCount" />
+                    <MudNumericField T="int" Label="تعداد نمایش" @bind-Value="_showCount" Variant="Variant.Outlined" Margin="Margin.Dense" />
                 </MudItem>
 
                 <MudItem xs="12">
@@ -48,11 +47,11 @@
                         {
                             <MudTabPanel Text="@lang.Name">
                                 <MudTextField Label="عنوان" @bind-Value="_translations[lang.Id].Title"
-                                              Required="@lang.IsDefault" Class="mb-3" />
+                                              Required="@lang.IsDefault" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3 mt-3" />
                                 <MudTextField Label="نامک (Slug)" @bind-Value="_translations[lang.Id].Slug"
-                                              Required="@lang.IsDefault" Class="mb-3" />
+                                              Required="@lang.IsDefault" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
                                 <MudTextField Label="توضیحات" @bind-Value="_translations[lang.Id].Description"
-                                              Lines="3" />
+                                              Variant="Variant.Outlined" Margin="Margin.Dense" Lines="3" />
                             </MudTabPanel>
                         }
                     </MudTabs>
@@ -85,74 +84,34 @@
     private int _orderValue;
     private int _showCount;
 
-    private List<Language> _languages = [];
-    private List<(Guid Id, string Title)> _parentOptions = [];
-    private List<Skin> _skins = [];
-    private readonly Dictionary<Guid, TranslationInput> _translations = [];
+    private List<LanguageDto> _languages = [];
+    private List<CategoryOptionDto> _parentOptions = [];
+    private List<SkinOptionDto> _skins = [];
+    private readonly Dictionary<Guid, CategoryTranslationInput> _translations = [];
 
     protected override async Task OnInitializedAsync()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
-
-        _languages = await db.Languages.Where(l => l.IsActive).OrderByDescending(l => l.IsDefault).ToListAsync();
-        _skins = await db.Skins.ToListAsync();
+        _languages = await CategoryService.GetActiveLanguagesAsync();
+        _skins = await CategoryService.GetSkinOptionsAsync();
+        _parentOptions = await CategoryService.GetParentOptionsAsync(CategoryId);
 
         foreach (var lang in _languages)
         {
-            _translations[lang.Id] = new TranslationInput();
+            _translations[lang.Id] = new CategoryTranslationInput();
         }
-
-        var defaultLangId = _languages.First(l => l.IsDefault).Id;
-
-        var allCategories = await db.Categories
-            .Select(c => new
-            {
-                c.Id,
-                c.ParentId,
-                Title = c.Translations.Where(t => t.LanguageId == defaultLangId).Select(t => t.Title).FirstOrDefault()
-            })
-            .ToListAsync();
-
-        var excluded = new HashSet<Guid>();
-        if (CategoryId is { } editingId)
-        {
-            excluded.Add(editingId);
-            var changed = true;
-            while (changed)
-            {
-                changed = false;
-                foreach (var c in allCategories)
-                {
-                    if (c.ParentId.HasValue && excluded.Contains(c.ParentId.Value) && excluded.Add(c.Id))
-                    {
-                        changed = true;
-                    }
-                }
-            }
-        }
-
-        _parentOptions = allCategories
-            .Where(c => !excluded.Contains(c.Id))
-            .Select(c => (c.Id, c.Title ?? "(بدون عنوان)"))
-            .ToList();
 
         if (CategoryId is { } id)
         {
-            var category = await db.Categories.Include(c => c.Translations).FirstOrDefaultAsync(c => c.Id == id);
-            if (category is not null)
+            var editDto = await CategoryService.GetForEditAsync(id);
+            if (editDto is not null)
             {
-                _parentId = category.ParentId;
-                _skinId = category.SkinId;
-                _orderValue = category.OrderValue;
-                _showCount = category.ShowCount;
-                foreach (var t in category.Translations)
+                _parentId = editDto.ParentId;
+                _skinId = editDto.SkinId;
+                _orderValue = editDto.OrderValue;
+                _showCount = editDto.ShowCount;
+                foreach (var (languageId, translation) in editDto.Translations)
                 {
-                    _translations[t.LanguageId] = new TranslationInput
-                    {
-                        Title = t.Title,
-                        Slug = t.Slug,
-                        Description = t.Description
-                    };
+                    _translations[languageId] = translation;
                 }
             }
         }
@@ -162,96 +121,34 @@
 
     private async Task Save()
     {
-        var defaultLangId = _languages.First(l => l.IsDefault).Id;
-        var defaultTranslation = _translations[defaultLangId];
-        if (string.IsNullOrWhiteSpace(defaultTranslation.Title) || string.IsNullOrWhiteSpace(defaultTranslation.Slug))
-        {
-            _errorMessage = "عنوان و نامک برای زبان پیش‌فرض الزامی است";
-            return;
-        }
-
-        if (_parentId == CategoryId)
-        {
-            _errorMessage = "یک دسته‌بندی نمی‌تواند والد خودش باشد";
-            return;
-        }
-
         _saving = true;
         _errorMessage = null;
 
-        try
+        var userId = await GetCurrentUserIdAsync();
+
+        var request = new CategorySaveRequest
         {
-            await using var db = await DbFactory.CreateDbContextAsync();
-            var userId = await GetCurrentUserIdAsync();
+            CategoryId = CategoryId,
+            ParentId = _parentId,
+            SkinId = _skinId,
+            OrderValue = _orderValue,
+            ShowCount = _showCount,
+            Translations = _translations,
+            CurrentUserId = userId
+        };
 
-            Category category;
-            if (_isNew)
-            {
-                category = new Category
-                {
-                    Id = Guid.NewGuid(),
-                    CreatedAt = DateTime.UtcNow,
-                    CreatedBy = userId
-                };
-                db.Categories.Add(category);
-            }
-            else
-            {
-                category = await db.Categories.Include(c => c.Translations).FirstAsync(c => c.Id == CategoryId);
-                category.UpdatedAt = DateTime.UtcNow;
-                category.UpdatedBy = userId;
-            }
+        var result = await CategoryService.SaveAsync(request);
 
-            category.ParentId = _parentId;
-            category.SkinId = _skinId;
-            category.OrderValue = _orderValue;
-            category.ShowCount = _showCount;
-
-            foreach (var lang in _languages)
-            {
-                var input = _translations[lang.Id];
-                var existing = category.Translations.FirstOrDefault(t => t.LanguageId == lang.Id);
-
-                if (string.IsNullOrWhiteSpace(input.Title))
-                {
-                    if (existing is not null)
-                    {
-                        category.Translations.Remove(existing);
-                        db.Remove(existing);
-                    }
-                    continue;
-                }
-
-                if (existing is null)
-                {
-                    category.Translations.Add(new CategoryTranslation
-                    {
-                        Id = Guid.NewGuid(),
-                        LanguageId = lang.Id,
-                        Title = input.Title,
-                        Slug = input.Slug,
-                        Description = input.Description
-                    });
-                }
-                else
-                {
-                    existing.Title = input.Title;
-                    existing.Slug = input.Slug;
-                    existing.Description = input.Description;
-                }
-            }
-
-            await db.SaveChangesAsync();
+        if (result.Success)
+        {
             MudDialog.Close(DialogResult.Ok(true));
         }
-        catch (DbUpdateException)
+        else
         {
-            _errorMessage = "خطا در ذخیره‌سازی. ممکن است نامک تکراری باشد.";
+            _errorMessage = result.ErrorMessage;
         }
-        finally
-        {
-            _saving = false;
-        }
+
+        _saving = false;
     }
 
     private async Task<Guid?> GetCurrentUserIdAsync()
@@ -262,11 +159,4 @@
     }
 
     private void Cancel() => MudDialog.Cancel();
-
-    private sealed class TranslationInput
-    {
-        public string Title { get; set; } = string.Empty;
-        public string Slug { get; set; } = string.Empty;
-        public string Description { get; set; } = string.Empty;
-    }
 }

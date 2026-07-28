@@ -8,6 +8,7 @@ using SBlazorCMS.Components;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Endpoints;
 using SBlazorCMS.Infrastructure.Persistence;
+using SBlazorCMS.Infrastructure.Services.Categories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,10 +16,15 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddMudServices();
+builder.Services.AddMudServices(config =>
+{
+    config.PopoverOptions.CheckForPopoverProvider = false;
+});
 
 builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddScoped<ICategoryService, CategoryService>();
 
 builder.Services.AddAntiforgery();
 
