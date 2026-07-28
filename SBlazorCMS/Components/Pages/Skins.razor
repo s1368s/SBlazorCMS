@@ -1,0 +1,102 @@
+@page "/skins"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "skins.manage")]
+@using SBlazorCMS.Components.Dialogs
+@using SBlazorCMS.Infrastructure.Services.Skins
+@inject ISkinService SkinService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>قالب‌ها</PageTitle>
+
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h4">قالب‌ها</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreateDialog">
+        قالب جدید
+    </MudButton>
+</div>
+
+<MudTable Items="_rows" Hover="true" Dense="true" Elevation="2" Loading="_loading" Class="rounded-lg">
+    <HeaderContent>
+        <MudTh>عنوان</MudTh>
+        <MudTh>توضیحات</MudTh>
+        <MudTh>عملیات</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="عنوان">@context.Title</MudTd>
+        <MudTd DataLabel="توضیحات">@context.Description</MudTd>
+        <MudTd DataLabel="عملیات">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEditDialog(context.Id))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteAsync(context.Id))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>هنوز قالبی ثبت نشده است</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private bool _loading = true;
+    private List<SkinListItemDto> _rows = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _rows = await SkinService.GetListAsync();
+        _loading = false;
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<SkinEditDialog>("قالب جدید");
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("قالب با موفقیت ثبت شد", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task OpenEditDialog(Guid id)
+    {
+        var parameters = new DialogParameters<SkinEditDialog> { { x => x.SkinId, id } };
+        var dialog = await DialogService.ShowAsync<SkinEditDialog>("ویرایش قالب", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("تغییرات ذخیره شد", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "حذف قالب",
+            "آیا از حذف این قالب مطمئن هستید؟",
+            yesText: "حذف",
+            cancelText: "انصراف");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userIdClaim = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = Guid.TryParse(userIdClaim, out var parsedId) ? parsedId : (Guid?)null;
+
+        var result = await SkinService.DeleteAsync(id, userId);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.ErrorMessage!, Severity.Warning);
+            return;
+        }
+
+        Snackbar.Add("قالب حذف شد", Severity.Success);
+        await LoadAsync();
+    }
+}

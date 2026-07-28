@@ -21,6 +21,7 @@ public class PermissionConfiguration : IEntityTypeConfiguration<Permission>
             new Permission { Id = Guid.Parse("55555555-5555-5555-5555-000000000006"), Code = "menus.manage", Name = "مدیریت منوها" },
             new Permission { Id = Guid.Parse("55555555-5555-5555-5555-000000000007"), Code = "users.manage", Name = "مدیریت کاربران" },
             new Permission { Id = Guid.Parse("55555555-5555-5555-5555-000000000008"), Code = "roles.manage", Name = "مدیریت نقش‌ها" },
-            new Permission { Id = Guid.Parse("55555555-5555-5555-5555-000000000009"), Code = "settings.manage", Name = "مدیریت تنظیمات" });
+            new Permission { Id = Guid.Parse("55555555-5555-5555-5555-000000000009"), Code = "settings.manage", Name = "مدیریت تنظیمات" },
+            new Permission { Id = Guid.Parse("55555555-5555-5555-5555-000000000010"), Code = "skins.manage", Name = "مدیریت قالب‌ها" });
     }
 }

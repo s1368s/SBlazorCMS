@@ -1,0 +1,98 @@
+@using System.Security.Claims
+@using SBlazorCMS.Infrastructure.Services.Skins
+@inject ISkinService SkinService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isNew ? "افزودن قالب" : "ویرایش قالب")</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="d-flex justify-center pa-4">
+                <MudProgressCircular Indeterminate="true" />
+            </div>
+        }
+        else
+        {
+            <MudTextField Label="عنوان" @bind-Value="_title" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+            <MudTextField Label="توضیحات" @bind-Value="_description" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="3" />
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-3">@_errorMessage</MudAlert>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">انصراف</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save" Disabled="_saving">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Guid? SkinId { get; set; }
+
+    private bool _isNew => SkinId is null;
+    private bool _loading = true;
+    private bool _saving;
+    private string? _errorMessage;
+
+    private string _title = string.Empty;
+    private string _description = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (SkinId is { } id)
+        {
+            var editDto = await SkinService.GetForEditAsync(id);
+            if (editDto is not null)
+            {
+                _title = editDto.Title;
+                _description = editDto.Description;
+            }
+        }
+
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        _saving = true;
+        _errorMessage = null;
+
+        var userId = await GetCurrentUserIdAsync();
+
+        var request = new SkinSaveRequest
+        {
+            SkinId = SkinId,
+            Title = _title,
+            Description = _description,
+            CurrentUserId = userId
+        };
+
+        var result = await SkinService.SaveAsync(request);
+
+        if (result.Success)
+        {
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        else
+        {
+            _errorMessage = result.ErrorMessage;
+        }
+
+        _saving = false;
+    }
+
+    private async Task<Guid?> GetCurrentUserIdAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var idClaim = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(idClaim, out var id) ? id : null;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}
