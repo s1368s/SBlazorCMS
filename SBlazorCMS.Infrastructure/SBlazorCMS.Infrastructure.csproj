@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SBlazorCMS.Domain\SBlazorCMS.Domain.csproj" />
+    <ProjectReference Include="..\SBlazorCMS.Contracts\SBlazorCMS.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -90,6 +90,7 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapAccountEndpoints();
+app.MapMenuEndpoints();
 
 app.UseStaticFiles();
 app.MapStaticAssets();

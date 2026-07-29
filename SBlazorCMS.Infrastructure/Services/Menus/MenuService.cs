@@ -1,11 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using SBlazorCMS.Contracts.Menus;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Infrastructure.Persistence;
 using SBlazorCMS.Infrastructure.Services.Common;
 
 namespace SBlazorCMS.Infrastructure.Services.Menus;
 
-public class MenuService(IDbContextFactory<ApplicationDbContext> dbFactory) : IMenuService
+public class MenuService(IDbContextFactory<ApplicationDbContext> dbFactory, ILanguageService languageService) : IMenuService
 {
     public async Task<List<MenuListItemDto>> GetListAsync()
     {
@@ -93,6 +94,63 @@ public class MenuService(IDbContextFactory<ApplicationDbContext> dbFactory) : IM
         {
             return ServiceResult.Fail("خطا در ذخیره‌سازی. ممکن است نام منو تکراری باشد.");
         }
+    }
+
+    public async Task<MenuPublicDto?> GetPublicByNameAsync(string name, string? languageCode)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        var menu = await db.Menus
+            .Include(m => m.Items)
+                .ThenInclude(i => i.Translations)
+            .FirstOrDefaultAsync(m => m.Name == name);
+
+        if (menu is null)
+        {
+            return null;
+        }
+
+        var languageId = string.IsNullOrWhiteSpace(languageCode)
+            ? await languageService.GetDefaultLanguageIdAsync()
+            : await db.Languages.Where(l => l.Code == languageCode && l.IsActive).Select(l => l.Id).FirstOrDefaultAsync();
+
+        if (languageId == Guid.Empty)
+        {
+            languageId = await languageService.GetDefaultLanguageIdAsync();
+        }
+
+        var dtoById = menu.Items.ToDictionary(i => i.Id, i => new MenuItemPublicDto
+        {
+            Id = i.Id,
+            Title = i.Translations.Where(t => t.LanguageId == languageId).Select(t => t.Title).FirstOrDefault() ?? string.Empty,
+            Url = i.Url,
+            ImgUrl = i.ImgUrl,
+            Extra = i.Extra,
+            Order = i.Order
+        });
+
+        var roots = new List<MenuItemPublicDto>();
+        foreach (var item in menu.Items.OrderBy(i => i.Order))
+        {
+            var dto = dtoById[item.Id];
+            if (item.ParentId is { } parentId && dtoById.TryGetValue(parentId, out var parentDto))
+            {
+                parentDto.Children.Add(dto);
+            }
+            else
+            {
+                roots.Add(dto);
+            }
+        }
+
+        return new MenuPublicDto
+        {
+            Id = menu.Id,
+            Name = menu.Name,
+            Description = menu.Description,
+            Location = menu.Location,
+            Items = roots
+        };
     }
 
     public async Task<ServiceResult> DeleteAsync(Guid menuId, Guid? currentUserId)
