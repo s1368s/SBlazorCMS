@@ -1,0 +1,120 @@
+@page "/languages"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "languages.manage")]
+@using SBlazorCMS.Components.Dialogs
+@using SBlazorCMS.Infrastructure.Services.Common
+@inject ILanguageService LanguageService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>زبان‌ها</PageTitle>
+
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h4">زبان‌ها</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreateDialog">
+        زبان جدید
+    </MudButton>
+</div>
+
+<MudTable Items="_rows" Hover="true" Dense="true" Elevation="2" Loading="_loading" Class="rounded-lg">
+    <HeaderContent>
+        <MudTh>نام</MudTh>
+        <MudTh>کد</MudTh>
+        <MudTh>پیش‌فرض</MudTh>
+        <MudTh>وضعیت</MudTh>
+        <MudTh>عملیات</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="نام">@context.Name</MudTd>
+        <MudTd DataLabel="کد">@context.Code</MudTd>
+        <MudTd DataLabel="پیش‌فرض">
+            @if (context.IsDefault)
+            {
+                <MudChip T="string" Color="Color.Primary" Size="Size.Small">پیش‌فرض</MudChip>
+            }
+        </MudTd>
+        <MudTd DataLabel="وضعیت">
+            @if (context.IsActive)
+            {
+                <MudChip T="string" Color="Color.Success" Size="Size.Small">فعال</MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Color="Color.Default" Size="Size.Small">غیرفعال</MudChip>
+            }
+        </MudTd>
+        <MudTd DataLabel="عملیات">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEditDialog(context.Id))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteAsync(context.Id))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>هنوز زبانی ثبت نشده است</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private bool _loading = true;
+    private List<LanguageListItemDto> _rows = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _rows = await LanguageService.GetListAsync();
+        _loading = false;
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<LanguageEditDialog>("زبان جدید");
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("زبان با موفقیت ثبت شد", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task OpenEditDialog(Guid id)
+    {
+        var parameters = new DialogParameters<LanguageEditDialog> { { x => x.LanguageId, id } };
+        var dialog = await DialogService.ShowAsync<LanguageEditDialog>("ویرایش زبان", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("تغییرات ذخیره شد", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "حذف زبان",
+            "آیا از حذف این زبان مطمئن هستید؟",
+            yesText: "حذف",
+            cancelText: "انصراف");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userIdClaim = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = Guid.TryParse(userIdClaim, out var parsedId) ? parsedId : (Guid?)null;
+
+        var result = await LanguageService.DeleteAsync(id, userId);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.ErrorMessage!, Severity.Warning);
+            return;
+        }
+
+        Snackbar.Add("زبان حذف شد", Severity.Success);
+        await LoadAsync();
+    }
+}

@@ -32,6 +32,7 @@ public class RolePermissionConfiguration : IEntityTypeConfiguration<RolePermissi
             new RolePermission { RoleId = adminRoleId, PermissionId = Guid.Parse("55555555-5555-5555-5555-000000000007") },
             new RolePermission { RoleId = adminRoleId, PermissionId = Guid.Parse("55555555-5555-5555-5555-000000000008") },
             new RolePermission { RoleId = adminRoleId, PermissionId = Guid.Parse("55555555-5555-5555-5555-000000000009") },
-            new RolePermission { RoleId = adminRoleId, PermissionId = Guid.Parse("55555555-5555-5555-5555-000000000010") });
+            new RolePermission { RoleId = adminRoleId, PermissionId = Guid.Parse("55555555-5555-5555-5555-000000000010") },
+            new RolePermission { RoleId = adminRoleId, PermissionId = Guid.Parse("55555555-5555-5555-5555-000000000011") });
     }
 }
