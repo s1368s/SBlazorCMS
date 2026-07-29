@@ -53,9 +53,21 @@ export async function initEditor(container, initialHtml, dotNetRef) {
         dotNetRef.invokeMethodAsync("OnContentChanged", quill.root.innerHTML);
     });
 
+    let savedRange = quill.getSelection();
+
+    quill.getModule("toolbar").addHandler("image", () => {
+        savedRange = quill.getSelection(true);
+        dotNetRef.invokeMethodAsync("RequestImageInsert");
+    });
+
     return {
         setContent: (html) => {
             quill.root.innerHTML = html || "";
+        },
+        insertImage: (url) => {
+            const range = savedRange || quill.getSelection(true) || { index: quill.getLength(), length: 0 };
+            quill.insertEmbed(range.index, "image", url, "user");
+            quill.setSelection(range.index + 1, 0, "user");
         },
         dispose: () => {
             quill.off("text-change");

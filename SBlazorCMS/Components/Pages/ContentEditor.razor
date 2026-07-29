@@ -2,6 +2,7 @@
 @page "/content/{Id:guid}"
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "content.manage")]
+@using System.Globalization
 @using System.Security.Claims
 @using SBlazorCMS.Components.Dialogs
 @using SBlazorCMS.Domain
@@ -59,7 +60,23 @@ else
                             <MudTextField Label="خلاصه" @bind-Value="_translations[lang.Id].Summary"
                                           Variant="Variant.Outlined" Margin="Margin.Dense" Lines="3" Class="mb-3" />
 
-                            <RichTextEditor Label="بدنه" @bind-Value="_translations[lang.Id].Body" />
+                            <div class="d-flex align-center justify-space-between mb-1">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">بدنه</MudText>
+                                <MudButton Size="Size.Small" Variant="Variant.Text"
+                                           StartIcon="@(_rawHtmlLanguages.Contains(lang.Id) ? Icons.Material.Filled.EditNote : Icons.Material.Filled.Code)"
+                                           OnClick="@(() => ToggleRawHtml(lang.Id))">
+                                    @(_rawHtmlLanguages.Contains(lang.Id) ? "نمایش ادیتور" : "ویرایش HTML خام")
+                                </MudButton>
+                            </div>
+                            @if (_rawHtmlLanguages.Contains(lang.Id))
+                            {
+                                <MudTextField @bind-Value="_translations[lang.Id].Body" Lines="14"
+                                              Variant="Variant.Outlined" Class="mb-3" Style="font-family: monospace; direction: ltr;" />
+                            }
+                            else
+                            {
+                                <RichTextEditor @bind-Value="_translations[lang.Id].Body" />
+                            }
 
                             <MudTextField Label="عنوان سئو (SEO Title)" @bind-Value="_translations[lang.Id].SeoTitle"
                                           Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3 mt-4" />
@@ -82,7 +99,8 @@ else
                     <MudSelectItem T="ContentStatus" Value="ContentStatus.Published">منتشر شده</MudSelectItem>
                     <MudSelectItem T="ContentStatus" Value="ContentStatus.Archived">بایگانی شده</MudSelectItem>
                 </MudSelect>
-                <MudDatePicker Label="تاریخ انتشار" @bind-Date="_publishDate" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+                <MudDatePicker Label="تاریخ انتشار" @bind-Date="_publishDate" Culture="_persianCulture"
+                               DateFormat="yyyy/MM/dd" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
                 <MudNumericField T="int" Label="ترتیب نمایش" @bind-Value="_orderValue" Variant="Variant.Outlined" Margin="Margin.Dense" />
             </MudPaper>
 
@@ -119,6 +137,7 @@ else
             <MudPaper Elevation="2" Class="pa-4 rounded-lg mb-4">
                 <MudText Typo="Typo.subtitle2" Class="mb-3">دسته‌بندی و برچسب</MudText>
                 <MudSelect T="Guid" Label="دسته‌بندی‌ها" MultiSelection="true" @bind-SelectedValues="_selectedCategoryIds"
+                           ToStringFunc="@GetCategoryTitle"
                            Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3">
                     @foreach (var category in _categoryOptions)
                     {
@@ -126,6 +145,7 @@ else
                     }
                 </MudSelect>
                 <MudSelect T="Guid" Label="برچسب‌ها" MultiSelection="true" @bind-SelectedValues="_selectedTagIds"
+                           ToStringFunc="@GetTagTitle"
                            Variant="Variant.Outlined" Margin="Margin.Dense">
                     @foreach (var tag in _tagOptions)
                     {
@@ -155,6 +175,8 @@ else
     private bool _saving;
     private string? _errorMessage;
 
+    private static readonly CultureInfo _persianCulture = new("fa-IR");
+
     private ContentStatus _status = ContentStatus.Draft;
     private DateTime? _publishDate;
     private int _orderValue;
@@ -171,6 +193,15 @@ else
     private IReadOnlyCollection<Guid> _selectedTagIds = [];
 
     private readonly Dictionary<Guid, ContentTranslationInput> _translations = [];
+    private readonly HashSet<Guid> _rawHtmlLanguages = [];
+
+    private void ToggleRawHtml(Guid languageId)
+    {
+        if (!_rawHtmlLanguages.Remove(languageId))
+        {
+            _rawHtmlLanguages.Add(languageId);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -247,6 +278,10 @@ else
             _saving = false;
         }
     }
+
+    private string GetCategoryTitle(Guid id) => _categoryOptions.FirstOrDefault(c => c.Id == id)?.Title ?? string.Empty;
+
+    private string GetTagTitle(Guid id) => _tagOptions.FirstOrDefault(t => t.Id == id)?.Title ?? string.Empty;
 
     private async Task<Guid?> GetCurrentUserIdAsync()
     {

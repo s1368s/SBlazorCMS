@@ -1,5 +1,7 @@
 @implements IAsyncDisposable
+@using SBlazorCMS.Components.Dialogs
 @inject IJSRuntime JS
+@inject IDialogService DialogService
 
 <div class="rich-text-editor">
     @if (!string.IsNullOrEmpty(Label))
@@ -34,6 +36,17 @@
     {
         Value = html;
         await ValueChanged.InvokeAsync(html);
+    }
+
+    [JSInvokable]
+    public async Task RequestImageInsert()
+    {
+        var dialog = await DialogService.ShowAsync<MediaPickerDialog>("انتخاب رسانه");
+        var result = await dialog.Result;
+        if (result is { Canceled: false } && result.Data is string address && _editorHandle is not null)
+        {
+            await _editorHandle.InvokeVoidAsync("insertImage", address);
+        }
     }
 
     public async ValueTask DisposeAsync()
