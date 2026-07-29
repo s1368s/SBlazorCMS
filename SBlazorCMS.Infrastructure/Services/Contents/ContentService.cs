@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using SBlazorCMS.Contracts.Common;
+using SBlazorCMS.Contracts.Contents;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Infrastructure.Persistence;
 using SBlazorCMS.Infrastructure.Services.Common;
@@ -23,6 +25,58 @@ public class ContentService(IDbContextFactory<ApplicationDbContext> dbFactory, I
                 OrderValue = c.OrderValue
             })
             .ToListAsync();
+    }
+
+    public async Task<PagedResult<ContentListItemPublicDto>> GetPublicByCategoryCodeAsync(string categoryCode, int page, int pageSize, string? languageCode)
+    {
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize < 1 ? 10 : Math.Min(pageSize, 100);
+
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        var languageId = string.IsNullOrWhiteSpace(languageCode)
+            ? await languageService.GetDefaultLanguageIdAsync()
+            : await db.Languages.Where(l => l.Code == languageCode && l.IsActive).Select(l => l.Id).FirstOrDefaultAsync();
+
+        if (languageId == Guid.Empty)
+        {
+            languageId = await languageService.GetDefaultLanguageIdAsync();
+        }
+
+        var categoryIds = db.Categories.Where(c => c.Code == categoryCode).Select(c => c.Id);
+
+        var query = db.Contents
+            .Where(c => c.Status == ContentStatus.Published)
+            .Where(c => db.ContentCategories.Any(cc => cc.ContentId == c.Id && categoryIds.Contains(cc.CategoryId)));
+
+        var totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(c => c.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(c => new ContentListItemPublicDto
+            {
+                Id = c.Id,
+                Title = c.Translations.Where(t => t.LanguageId == languageId).Select(t => t.Title).FirstOrDefault() ?? string.Empty,
+                Slug = c.Translations.Where(t => t.LanguageId == languageId).Select(t => t.Slug).FirstOrDefault() ?? string.Empty,
+                PreTitle = c.Translations.Where(t => t.LanguageId == languageId).Select(t => t.PreTitle).FirstOrDefault() ?? string.Empty,
+                Summary = c.Translations.Where(t => t.LanguageId == languageId).Select(t => t.Summary).FirstOrDefault() ?? string.Empty,
+                BigImg = c.BigImg,
+                SmallImg = c.SmallImg,
+                PublishDate = c.PublishDate,
+                CreatedAt = c.CreatedAt
+            })
+            .ToListAsync();
+
+        return new PagedResult<ContentListItemPublicDto>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+        };
     }
 
     public async Task<ContentEditDto?> GetForEditAsync(Guid contentId)
