@@ -2,11 +2,12 @@ using Microsoft.EntityFrameworkCore;
 using SBlazorCMS.Contracts.Menus;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Infrastructure.Persistence;
+using SBlazorCMS.Infrastructure.Services.ActivityLogs;
 using SBlazorCMS.Infrastructure.Services.Common;
 
 namespace SBlazorCMS.Infrastructure.Services.Menus;
 
-public class MenuService(IDbContextFactory<ApplicationDbContext> dbFactory, ILanguageService languageService) : IMenuService
+public class MenuService(IDbContextFactory<ApplicationDbContext> dbFactory, ILanguageService languageService, IActivityLogService activityLogService) : IMenuService
 {
     public async Task<List<MenuListItemDto>> GetListAsync()
     {
@@ -85,9 +86,12 @@ public class MenuService(IDbContextFactory<ApplicationDbContext> dbFactory, ILan
         menu.Description = request.Description;
         menu.Location = request.Location;
 
+        var isNew = request.MenuId is null;
+
         try
         {
             await db.SaveChangesAsync();
+            await activityLogService.LogAsync(request.CurrentUserId, isNew ? "Create" : "Update", "Menu", menu.Id.ToString(), menu.Name);
             return ServiceResult.Ok();
         }
         catch (DbUpdateException)
@@ -174,6 +178,7 @@ public class MenuService(IDbContextFactory<ApplicationDbContext> dbFactory, ILan
         menu.DeletedBy = currentUserId;
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(currentUserId, "Delete", "Menu", menuId.ToString(), menu.Name);
         return ServiceResult.Ok();
     }
 }

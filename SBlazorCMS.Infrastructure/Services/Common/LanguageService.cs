@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Infrastructure.Persistence;
+using SBlazorCMS.Infrastructure.Services.ActivityLogs;
 
 namespace SBlazorCMS.Infrastructure.Services.Common;
 
-public class LanguageService(IDbContextFactory<ApplicationDbContext> dbFactory) : ILanguageService
+public class LanguageService(IDbContextFactory<ApplicationDbContext> dbFactory, IActivityLogService activityLogService) : ILanguageService
 {
     public async Task<List<LanguageDto>> GetActiveLanguagesAsync()
     {
@@ -114,6 +115,8 @@ public class LanguageService(IDbContextFactory<ApplicationDbContext> dbFactory) 
             }
         }
 
+        var isNew = request.LanguageId is null;
+
         try
         {
             await db.SaveChangesAsync();
@@ -123,6 +126,7 @@ public class LanguageService(IDbContextFactory<ApplicationDbContext> dbFactory) 
             return ServiceResult.Fail("خطا در ذخیره‌سازی. ممکن است کد زبان تکراری باشد.");
         }
 
+        await activityLogService.LogAsync(request.CurrentUserId, isNew ? "Create" : "Update", "Language", language.Id.ToString(), language.Name);
         return ServiceResult.Ok();
     }
 
@@ -157,6 +161,7 @@ public class LanguageService(IDbContextFactory<ApplicationDbContext> dbFactory) 
         language.DeletedBy = currentUserId;
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(currentUserId, "Delete", "Language", languageId.ToString(), language.Name);
         return ServiceResult.Ok();
     }
 }

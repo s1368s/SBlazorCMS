@@ -2,11 +2,12 @@ using Microsoft.EntityFrameworkCore;
 using SBlazorCMS.Contracts.Settings;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Infrastructure.Persistence;
+using SBlazorCMS.Infrastructure.Services.ActivityLogs;
 using SBlazorCMS.Infrastructure.Services.Common;
 
 namespace SBlazorCMS.Infrastructure.Services.Settings;
 
-public class SettingService(IDbContextFactory<ApplicationDbContext> dbFactory) : ISettingService
+public class SettingService(IDbContextFactory<ApplicationDbContext> dbFactory, IActivityLogService activityLogService) : ISettingService
 {
     public async Task<List<SettingPublicDto>> GetByKeysAsync(List<string> keys)
     {
@@ -92,6 +93,8 @@ public class SettingService(IDbContextFactory<ApplicationDbContext> dbFactory) :
         setting.Key = request.Key;
         setting.Value = request.Value;
 
+        var isNew = request.SettingId is null;
+
         try
         {
             await db.SaveChangesAsync();
@@ -101,6 +104,7 @@ public class SettingService(IDbContextFactory<ApplicationDbContext> dbFactory) :
             return ServiceResult.Fail("خطا در ذخیره‌سازی. ممکن است کلید تکراری باشد.");
         }
 
+        await activityLogService.LogAsync(request.CurrentUserId, isNew ? "Create" : "Update", "Setting", setting.Id.ToString(), setting.Key);
         return ServiceResult.Ok();
     }
 
@@ -119,6 +123,7 @@ public class SettingService(IDbContextFactory<ApplicationDbContext> dbFactory) :
         setting.DeletedBy = currentUserId;
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(currentUserId, "Delete", "Setting", settingId.ToString(), setting.Key);
         return ServiceResult.Ok();
     }
 }

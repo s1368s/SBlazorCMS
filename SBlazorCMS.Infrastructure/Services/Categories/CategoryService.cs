@@ -1,11 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Infrastructure.Persistence;
+using SBlazorCMS.Infrastructure.Services.ActivityLogs;
 using SBlazorCMS.Infrastructure.Services.Common;
 
 namespace SBlazorCMS.Infrastructure.Services.Categories;
 
-public class CategoryService(IDbContextFactory<ApplicationDbContext> dbFactory, ILanguageService languageService) : ICategoryService
+public class CategoryService(IDbContextFactory<ApplicationDbContext> dbFactory, ILanguageService languageService, IActivityLogService activityLogService) : ICategoryService
 {
     public async Task<List<CategoryListItemDto>> GetListAsync()
     {
@@ -187,9 +188,12 @@ public class CategoryService(IDbContextFactory<ApplicationDbContext> dbFactory, 
             }
         }
 
+        var isNew = request.CategoryId is null;
+
         try
         {
             await db.SaveChangesAsync();
+            await activityLogService.LogAsync(request.CurrentUserId, isNew ? "Create" : "Update", "Category", category.Id.ToString(), defaultTranslation.Title);
             return ServiceResult.Ok();
         }
         catch (DbUpdateException)
@@ -219,6 +223,7 @@ public class CategoryService(IDbContextFactory<ApplicationDbContext> dbFactory, 
         category.DeletedBy = currentUserId;
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(currentUserId, "Delete", "Category", categoryId.ToString(), category.Code);
         return ServiceResult.Ok();
     }
 }

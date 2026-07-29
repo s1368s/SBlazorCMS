@@ -3,11 +3,12 @@ using SBlazorCMS.Contracts.Common;
 using SBlazorCMS.Contracts.Contents;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Infrastructure.Persistence;
+using SBlazorCMS.Infrastructure.Services.ActivityLogs;
 using SBlazorCMS.Infrastructure.Services.Common;
 
 namespace SBlazorCMS.Infrastructure.Services.Contents;
 
-public class ContentService(IDbContextFactory<ApplicationDbContext> dbFactory, ILanguageService languageService) : IContentService
+public class ContentService(IDbContextFactory<ApplicationDbContext> dbFactory, ILanguageService languageService, IActivityLogService activityLogService) : IContentService
 {
     public async Task<List<ContentListItemDto>> GetListAsync()
     {
@@ -237,6 +238,8 @@ public class ContentService(IDbContextFactory<ApplicationDbContext> dbFactory, I
             }
         }
 
+        var isNew = request.ContentId is null;
+
         try
         {
             await db.SaveChangesAsync();
@@ -255,6 +258,8 @@ public class ContentService(IDbContextFactory<ApplicationDbContext> dbFactory, I
             ct => ct.TagId);
 
         await db.SaveChangesAsync();
+
+        await activityLogService.LogAsync(request.CurrentUserId, isNew ? "Create" : "Update", "Content", content.Id.ToString(), defaultTranslation.Title);
 
         return ServiceResult.Ok();
     }
@@ -297,6 +302,7 @@ public class ContentService(IDbContextFactory<ApplicationDbContext> dbFactory, I
         content.DeletedBy = currentUserId;
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(currentUserId, "Delete", "Content", contentId.ToString());
         return ServiceResult.Ok();
     }
 }

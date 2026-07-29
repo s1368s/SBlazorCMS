@@ -2,11 +2,12 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Infrastructure.Persistence;
+using SBlazorCMS.Infrastructure.Services.ActivityLogs;
 using SBlazorCMS.Infrastructure.Services.Common;
 
 namespace SBlazorCMS.Infrastructure.Services.Users;
 
-public class UserService(IDbContextFactory<ApplicationDbContext> dbFactory, IPasswordHasher<User> passwordHasher) : IUserService
+public class UserService(IDbContextFactory<ApplicationDbContext> dbFactory, IPasswordHasher<User> passwordHasher, IActivityLogService activityLogService) : IUserService
 {
     public async Task<List<UserListItemDto>> GetListAsync()
     {
@@ -131,6 +132,7 @@ public class UserService(IDbContextFactory<ApplicationDbContext> dbFactory, IPas
         }
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(request.CurrentUserId, request.UserId is null ? "Create" : "Update", "User", user.Id.ToString(), user.UserName);
         return ServiceResult.Ok();
     }
 
@@ -157,6 +159,7 @@ public class UserService(IDbContextFactory<ApplicationDbContext> dbFactory, IPas
         db.UserRoles.RemoveRange(roleLinks);
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(currentUserId, "Delete", "User", userId.ToString(), user.UserName);
         return ServiceResult.Ok();
     }
 }

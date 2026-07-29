@@ -1,10 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using SBlazorCMS.Infrastructure.Persistence;
+using SBlazorCMS.Infrastructure.Services.ActivityLogs;
 using SBlazorCMS.Infrastructure.Services.Common;
 
 namespace SBlazorCMS.Infrastructure.Services.Comments;
 
-public class CommentService(IDbContextFactory<ApplicationDbContext> dbFactory, ILanguageService languageService) : ICommentService
+public class CommentService(IDbContextFactory<ApplicationDbContext> dbFactory, ILanguageService languageService, IActivityLogService activityLogService) : ICommentService
 {
     public async Task<List<CommentListItemDto>> GetListAsync()
     {
@@ -70,6 +71,7 @@ public class CommentService(IDbContextFactory<ApplicationDbContext> dbFactory, I
         comment.UpdatedBy = request.CurrentUserId;
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(request.CurrentUserId, "Update", "Comment", comment.Id.ToString(), comment.Name);
         return ServiceResult.Ok();
     }
 
@@ -88,6 +90,7 @@ public class CommentService(IDbContextFactory<ApplicationDbContext> dbFactory, I
         comment.UpdatedBy = currentUserId;
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(currentUserId, isApproved ? "Approve" : "Unapprove", "Comment", commentId.ToString(), comment.Name);
         return ServiceResult.Ok();
     }
 
@@ -106,6 +109,7 @@ public class CommentService(IDbContextFactory<ApplicationDbContext> dbFactory, I
         comment.DeletedBy = currentUserId;
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(currentUserId, "Delete", "Comment", commentId.ToString(), comment.Name);
         return ServiceResult.Ok();
     }
 }

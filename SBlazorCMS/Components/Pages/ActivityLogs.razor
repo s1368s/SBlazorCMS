@@ -1,0 +1,114 @@
+@page "/activity-logs"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = "activitylogs.view")]
+@using SBlazorCMS.Infrastructure.Services.ActivityLogs
+@inject IActivityLogService ActivityLogService
+
+<PageTitle>گزارش فعالیت‌ها</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">گزارش فعالیت‌ها</MudText>
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+    <MudGrid>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" Label="عملیات" Value="_actionFilter" ValueChanged="OnActionFilterChanged" Clearable="true" AnchorOrigin="Origin.BottomCenter">
+                @foreach (var action in _actions)
+                {
+                    <MudSelectItem T="string" Value="@action">@action</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudSelect T="string" Label="موجودیت" Value="_entityFilter" ValueChanged="OnEntityFilterChanged" Clearable="true" AnchorOrigin="Origin.BottomCenter">
+                @foreach (var entity in _entities)
+                {
+                    <MudSelectItem T="string" Value="@entity">@entity</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="از تاریخ" Date="_fromDate" DateChanged="OnFromDateChanged" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <MudDatePicker Label="تا تاریخ" Date="_toDate" DateChanged="OnToDateChanged" />
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+<MudTable @ref="_table" ServerData="ServerReloadAsync" Hover="true" Dense="true" Elevation="2" Class="rounded-lg">
+    <HeaderContent>
+        <MudTh>زمان</MudTh>
+        <MudTh>کاربر</MudTh>
+        <MudTh>عملیات</MudTh>
+        <MudTh>موجودیت</MudTh>
+        <MudTh>جزئیات</MudTh>
+        <MudTh>آدرس IP</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="زمان">@context.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm:ss")</MudTd>
+        <MudTd DataLabel="کاربر">@(context.UserName ?? "سیستم")</MudTd>
+        <MudTd DataLabel="عملیات">@context.Action</MudTd>
+        <MudTd DataLabel="موجودیت">@context.EntityName</MudTd>
+        <MudTd DataLabel="جزئیات">@(context.Details ?? "—")</MudTd>
+        <MudTd DataLabel="آدرس IP">@(context.IpAddress ?? "—")</MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>هیچ فعالیتی ثبت نشده است</MudText>
+    </NoRecordsContent>
+    <PagerContent>
+        <MudTablePager RowsPerPageString="سطر در هر صفحه" InfoFormat="{first_item}-{last_item} از {all_items}" />
+    </PagerContent>
+</MudTable>
+
+@code {
+    private MudTable<ActivityLogListItemDto> _table = null!;
+    private List<string> _actions = [];
+    private List<string> _entities = [];
+    private string? _actionFilter;
+    private string? _entityFilter;
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _actions = await ActivityLogService.GetDistinctActionsAsync();
+        _entities = await ActivityLogService.GetDistinctEntityNamesAsync();
+    }
+
+    private async Task OnActionFilterChanged(string? value)
+    {
+        _actionFilter = value;
+        await _table.ReloadServerData();
+    }
+
+    private async Task OnEntityFilterChanged(string? value)
+    {
+        _entityFilter = value;
+        await _table.ReloadServerData();
+    }
+
+    private async Task OnFromDateChanged(DateTime? value)
+    {
+        _fromDate = value;
+        await _table.ReloadServerData();
+    }
+
+    private async Task OnToDateChanged(DateTime? value)
+    {
+        _toDate = value;
+        await _table.ReloadServerData();
+    }
+
+    private async Task<TableData<ActivityLogListItemDto>> ServerReloadAsync(TableState state, CancellationToken token)
+    {
+        var result = await ActivityLogService.GetPagedAsync(
+            state.Page + 1,
+            state.PageSize,
+            _actionFilter,
+            _entityFilter,
+            _fromDate,
+            _toDate?.AddDays(1).AddTicks(-1));
+
+        return new TableData<ActivityLogListItemDto> { Items = result.Items, TotalItems = result.TotalCount };
+    }
+}

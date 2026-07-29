@@ -10,6 +10,7 @@ using SBlazorCMS.Components;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Endpoints;
 using SBlazorCMS.Infrastructure.Persistence;
+using SBlazorCMS.Infrastructure.Services.ActivityLogs;
 using SBlazorCMS.Infrastructure.Services.Categories;
 using SBlazorCMS.Infrastructure.Services.Comments;
 using SBlazorCMS.Infrastructure.Services.Common;
@@ -43,6 +44,7 @@ builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
 
 builder.Services.AddOpenApi();
 
+builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
 builder.Services.AddScoped<ILanguageService, LanguageService>();
 builder.Services.AddScoped<ICategoryService, CategoryService>();
 builder.Services.AddScoped<ITagService, TagService>();

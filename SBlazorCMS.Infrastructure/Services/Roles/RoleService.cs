@@ -1,11 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Infrastructure.Persistence;
+using SBlazorCMS.Infrastructure.Services.ActivityLogs;
 using SBlazorCMS.Infrastructure.Services.Common;
 
 namespace SBlazorCMS.Infrastructure.Services.Roles;
 
-public class RoleService(IDbContextFactory<ApplicationDbContext> dbFactory) : IRoleService
+public class RoleService(IDbContextFactory<ApplicationDbContext> dbFactory, IActivityLogService activityLogService) : IRoleService
 {
     public async Task<List<RoleListItemDto>> GetListAsync()
     {
@@ -105,6 +106,7 @@ public class RoleService(IDbContextFactory<ApplicationDbContext> dbFactory) : IR
         }
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(request.CurrentUserId, request.RoleId is null ? "Create" : "Update", "Role", role.Id.ToString(), role.DisplayName);
         return ServiceResult.Ok();
     }
 
@@ -132,6 +134,7 @@ public class RoleService(IDbContextFactory<ApplicationDbContext> dbFactory) : IR
         db.RolePermissions.RemoveRange(permissionLinks);
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(currentUserId, "Delete", "Role", roleId.ToString(), role.DisplayName);
         return ServiceResult.Ok();
     }
 }

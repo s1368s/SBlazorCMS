@@ -1,11 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Infrastructure.Persistence;
+using SBlazorCMS.Infrastructure.Services.ActivityLogs;
 using SBlazorCMS.Infrastructure.Services.Common;
 
 namespace SBlazorCMS.Infrastructure.Services.Skins;
 
-public class SkinService(IDbContextFactory<ApplicationDbContext> dbFactory) : ISkinService
+public class SkinService(IDbContextFactory<ApplicationDbContext> dbFactory, IActivityLogService activityLogService) : ISkinService
 {
     public async Task<List<SkinListItemDto>> GetListAsync()
     {
@@ -73,7 +74,10 @@ public class SkinService(IDbContextFactory<ApplicationDbContext> dbFactory) : IS
         skin.Title = request.Title;
         skin.Description = request.Description;
 
+        var isNew = request.SkinId is null;
+
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(request.CurrentUserId, isNew ? "Create" : "Update", "Skin", skin.Id.ToString(), skin.Title);
         return ServiceResult.Ok();
     }
 
@@ -92,6 +96,7 @@ public class SkinService(IDbContextFactory<ApplicationDbContext> dbFactory) : IS
         skin.DeletedBy = currentUserId;
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(currentUserId, "Delete", "Skin", skinId.ToString(), skin.Title);
         return ServiceResult.Ok();
     }
 }

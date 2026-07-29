@@ -1,11 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using SBlazorCMS.Infrastructure.Persistence;
+using SBlazorCMS.Infrastructure.Services.ActivityLogs;
 using SBlazorCMS.Infrastructure.Services.Common;
 using MediaEntity = SBlazorCMS.Domain.Media;
 
 namespace SBlazorCMS.Infrastructure.Services.Media;
 
-public class MediaService(IDbContextFactory<ApplicationDbContext> dbFactory, IUploadPathProvider pathProvider) : IMediaService
+public class MediaService(IDbContextFactory<ApplicationDbContext> dbFactory, IUploadPathProvider pathProvider, IActivityLogService activityLogService) : IMediaService
 {
     private static readonly HashSet<string> AllowedExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -74,6 +75,8 @@ public class MediaService(IDbContextFactory<ApplicationDbContext> dbFactory, IUp
         db.Media.Add(media);
         await db.SaveChangesAsync();
 
+        await activityLogService.LogAsync(request.CurrentUserId, "Upload", "Media", media.Id.ToString(), media.OriginalName);
+
         return ServiceResult.Ok();
     }
 
@@ -91,6 +94,7 @@ public class MediaService(IDbContextFactory<ApplicationDbContext> dbFactory, IUp
         media.DeletedBy = currentUserId;
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(currentUserId, "Delete", "Media", mediaId.ToString(), media.OriginalName);
 
         if (File.Exists(media.Path))
         {

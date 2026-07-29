@@ -1,11 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Infrastructure.Persistence;
+using SBlazorCMS.Infrastructure.Services.ActivityLogs;
 using SBlazorCMS.Infrastructure.Services.Common;
 
 namespace SBlazorCMS.Infrastructure.Services.Tags;
 
-public class TagService(IDbContextFactory<ApplicationDbContext> dbFactory, ILanguageService languageService) : ITagService
+public class TagService(IDbContextFactory<ApplicationDbContext> dbFactory, ILanguageService languageService, IActivityLogService activityLogService) : ITagService
 {
     public async Task<List<TagListItemDto>> GetListAsync()
     {
@@ -117,9 +118,12 @@ public class TagService(IDbContextFactory<ApplicationDbContext> dbFactory, ILang
             }
         }
 
+        var isNew = request.TagId is null;
+
         try
         {
             await db.SaveChangesAsync();
+            await activityLogService.LogAsync(request.CurrentUserId, isNew ? "Create" : "Update", "Tag", tag.Id.ToString(), defaultTranslation.Title);
             return ServiceResult.Ok();
         }
         catch (DbUpdateException)
@@ -143,6 +147,7 @@ public class TagService(IDbContextFactory<ApplicationDbContext> dbFactory, ILang
         tag.DeletedBy = currentUserId;
 
         await db.SaveChangesAsync();
+        await activityLogService.LogAsync(currentUserId, "Delete", "Tag", tagId.ToString());
         return ServiceResult.Ok();
     }
 }

@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using SBlazorCMS.Authorization;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Infrastructure.Persistence;
+using SBlazorCMS.Infrastructure.Services.ActivityLogs;
 
 namespace SBlazorCMS.Endpoints;
 
@@ -15,12 +16,13 @@ public static class AccountEndpoints
     public static void MapAccountEndpoints(this WebApplication app)
     {
         var loginBuilder = app.MapPost("/account/login", (HttpContext http, IAntiforgery antiforgery,
-                IDbContextFactory<ApplicationDbContext> dbFactory, IPasswordHasher<User> hasher)
-            => HandleLoginAsync(http, antiforgery, dbFactory, hasher));
+                IDbContextFactory<ApplicationDbContext> dbFactory, IPasswordHasher<User> hasher, IActivityLogService activityLogService)
+            => HandleLoginAsync(http, antiforgery, dbFactory, hasher, activityLogService));
         loginBuilder.DisableAntiforgery();
         loginBuilder.ExcludeFromDescription();
 
-        var logoutBuilder = app.MapPost("/account/logout", (Delegate)((HttpContext http) => HandleLogoutAsync(http)));
+        var logoutBuilder = app.MapPost("/account/logout", (HttpContext http, IActivityLogService activityLogService)
+            => HandleLogoutAsync(http, activityLogService));
         logoutBuilder.DisableAntiforgery();
         logoutBuilder.ExcludeFromDescription();
     }
@@ -29,7 +31,8 @@ public static class AccountEndpoints
         HttpContext http,
         IAntiforgery antiforgery,
         IDbContextFactory<ApplicationDbContext> dbFactory,
-        IPasswordHasher<User> hasher)
+        IPasswordHasher<User> hasher,
+        IActivityLogService activityLogService)
     {
         if (!await antiforgery.IsRequestValidAsync(http))
         {
@@ -40,18 +43,21 @@ public static class AccountEndpoints
         var userName = form["userName"].ToString().Trim();
         var password = form["password"].ToString();
         var returnUrl = form["returnUrl"].ToString();
+        var ipAddress = http.Connection.RemoteIpAddress?.ToString();
 
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var user = await db.Users.FirstOrDefaultAsync(u => u.UserName == userName);
         if (user is null || !user.IsActive)
         {
+            await activityLogService.LogAsync(user?.Id, "Login Failed", "User", null, $"نام کاربری: {userName}", ipAddress);
             return Results.Redirect("/login?error=1");
         }
 
         var verification = hasher.VerifyHashedPassword(user, user.PasswordHash, password);
         if (verification == PasswordVerificationResult.Failed)
         {
+            await activityLogService.LogAsync(user.Id, "Login Failed", "User", user.Id.ToString(), $"نام کاربری: {userName}", ipAddress);
             return Results.Redirect("/login?error=1");
         }
 
@@ -78,11 +84,19 @@ public static class AccountEndpoints
             IsPersistent = true
         });
 
+        await activityLogService.LogAsync(user.Id, "Login", "User", user.Id.ToString(), $"ورود کاربر: {user.UserName}", ipAddress);
+
         return Results.Redirect(string.IsNullOrWhiteSpace(returnUrl) ? "/" : returnUrl);
     }
 
-    private static async Task<IResult> HandleLogoutAsync(HttpContext http)
+    private static async Task<IResult> HandleLogoutAsync(HttpContext http, IActivityLogService activityLogService)
     {
+        var userIdClaim = http.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (Guid.TryParse(userIdClaim, out var userId))
+        {
+            await activityLogService.LogAsync(userId, "Logout", "User", userId.ToString(), null, http.Connection.RemoteIpAddress?.ToString());
+        }
+
         await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return Results.Redirect("/login");
     }
