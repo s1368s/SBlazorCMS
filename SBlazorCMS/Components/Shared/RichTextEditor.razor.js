@@ -1,5 +1,4 @@
-const QUILL_JS = "https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js";
-const QUILL_CSS = "https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css";
+const TINYMCE_JS = "https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js";
 
 function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -10,67 +9,70 @@ function loadScript(src) {
         }
         const script = document.createElement("script");
         script.src = src;
+        script.referrerPolicy = "origin";
         script.onload = () => resolve();
         script.onerror = () => reject(new Error("Failed to load " + src));
         document.head.appendChild(script);
     });
 }
 
-async function ensureQuillLoaded() {
-    if (!document.querySelector(`link[href="${QUILL_CSS}"]`)) {
-        const link = document.createElement("link");
-        link.rel = "stylesheet";
-        link.href = QUILL_CSS;
-        document.head.appendChild(link);
-    }
-    if (!window.Quill) {
-        await loadScript(QUILL_JS);
+async function ensureTinyMceLoaded() {
+    if (!window.tinymce) {
+        await loadScript(TINYMCE_JS);
     }
 }
 
 export async function initEditor(container, initialHtml, dotNetRef) {
-    await ensureQuillLoaded();
+    await ensureTinyMceLoaded();
 
-    const quill = new window.Quill(container, {
-        theme: "snow",
-        modules: {
-            toolbar: [
-                [{ header: [1, 2, 3, false] }],
-                ["bold", "italic", "underline", "strike"],
-                [{ list: "ordered" }, { list: "bullet" }],
-                [{ direction: "rtl" }],
-                ["link", "image"],
-                ["clean"]
-            ]
+    container.innerHTML = initialHtml || "";
+
+    let pendingFilePickerCallback = null;
+    let editor = null;
+
+    const editors = await window.tinymce.init({
+        target: container,
+        license_key: "gpl",
+        branding: false,
+        promotion: false,
+        height: 420,
+        directionality: "rtl",
+        menubar: false,
+        plugins: "advlist autolink lists link image table code fullscreen media searchreplace",
+        toolbar: "undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image media table | ltr rtl | removeformat code fullscreen",
+        image_advtab: true,
+        object_resizing: true,
+        file_picker_types: "image",
+        file_picker_callback: (callback) => {
+            pendingFilePickerCallback = callback;
+            dotNetRef.invokeMethodAsync("RequestImageInsert");
+        },
+        setup: (ed) => {
+            editor = ed;
+            ed.on("init", () => {
+                ed.on("change input undo redo", () => {
+                    dotNetRef.invokeMethodAsync("OnContentChanged", ed.getContent());
+                });
+            });
         }
     });
 
-    if (initialHtml) {
-        quill.clipboard.dangerouslyPasteHTML(initialHtml);
-    }
-
-    quill.on("text-change", () => {
-        dotNetRef.invokeMethodAsync("OnContentChanged", quill.root.innerHTML);
-    });
-
-    let savedRange = quill.getSelection();
-
-    quill.getModule("toolbar").addHandler("image", () => {
-        savedRange = quill.getSelection(true);
-        dotNetRef.invokeMethodAsync("RequestImageInsert");
-    });
+    editor = editor || editors[0];
 
     return {
         setContent: (html) => {
-            quill.root.innerHTML = html || "";
+            editor.setContent(html || "");
         },
         insertImage: (url) => {
-            const range = savedRange || quill.getSelection(true) || { index: quill.getLength(), length: 0 };
-            quill.insertEmbed(range.index, "image", url, "user");
-            quill.setSelection(range.index + 1, 0, "user");
+            if (pendingFilePickerCallback) {
+                pendingFilePickerCallback(url, { alt: "" });
+                pendingFilePickerCallback = null;
+            } else {
+                editor.insertContent(`<img src="${url}" />`);
+            }
         },
         dispose: () => {
-            quill.off("text-change");
+            window.tinymce.remove(editor);
         }
     };
 }
