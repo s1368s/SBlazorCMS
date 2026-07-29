@@ -13,8 +13,10 @@ using SBlazorCMS.Infrastructure.Services.Common;
 using SBlazorCMS.Infrastructure.Services.Contents;
 using SBlazorCMS.Infrastructure.Services.MenuItems;
 using SBlazorCMS.Infrastructure.Services.Menus;
+using SBlazorCMS.Infrastructure.Services.Roles;
 using SBlazorCMS.Infrastructure.Services.Skins;
 using SBlazorCMS.Infrastructure.Services.Tags;
+using SBlazorCMS.Infrastructure.Services.Users;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,6 +39,8 @@ builder.Services.AddScoped<ISkinService, SkinService>();
 builder.Services.AddScoped<IContentService, ContentService>();
 builder.Services.AddScoped<IMenuService, MenuService>();
 builder.Services.AddScoped<IMenuItemService, MenuItemService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IRoleService, RoleService>();
 
 builder.Services.AddAntiforgery();
 

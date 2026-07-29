@@ -1,0 +1,116 @@
+@using System.Security.Claims
+@using SBlazorCMS.Components.Shared
+@using SBlazorCMS.Infrastructure.Services.Roles
+@inject IRoleService RoleService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_isNew ? "افزودن نقش" : "ویرایش نقش")</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="d-flex justify-center pa-4">
+                <MudProgressCircular Indeterminate="true" />
+            </div>
+        }
+        else
+        {
+            <MudTextField Label="نام (انگلیسی)" @bind-Value="_name" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+            <MudTextField Label="عنوان نمایشی" @bind-Value="_displayName" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+
+            <MudSelect T="Guid" Label="دسترسی‌ها" MultiSelection="true" @bind-SelectedValues="_selectedPermissionIds"
+                       Converter="_permissionConverter" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var permission in _permissionOptions)
+                {
+                    <MudSelectItem T="Guid" Value="permission.Id">@permission.Name</MudSelectItem>
+                }
+            </MudSelect>
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-3">@_errorMessage</MudAlert>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">انصراف</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save" Disabled="_saving">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Guid? RoleId { get; set; }
+
+    private bool _isNew => RoleId is null;
+    private bool _loading = true;
+    private bool _saving;
+    private string? _errorMessage;
+
+    private string _name = string.Empty;
+    private string _displayName = string.Empty;
+
+    private List<PermissionOptionDto> _permissionOptions = [];
+    private IReadOnlyCollection<Guid> _selectedPermissionIds = [];
+    private GuidLookupConverter _permissionConverter = null!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _permissionOptions = await RoleService.GetPermissionOptionsAsync();
+        _permissionConverter = new GuidLookupConverter(id => _permissionOptions.FirstOrDefault(p => p.Id == id)?.Name ?? string.Empty);
+
+        if (RoleId is { } id)
+        {
+            var editDto = await RoleService.GetForEditAsync(id);
+            if (editDto is not null)
+            {
+                _name = editDto.Name;
+                _displayName = editDto.DisplayName;
+                _selectedPermissionIds = editDto.PermissionIds;
+            }
+        }
+
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        _saving = true;
+        _errorMessage = null;
+
+        var userId = await GetCurrentUserIdAsync();
+
+        var request = new RoleSaveRequest
+        {
+            RoleId = RoleId,
+            Name = _name,
+            DisplayName = _displayName,
+            PermissionIds = _selectedPermissionIds.ToList(),
+            CurrentUserId = userId
+        };
+
+        var result = await RoleService.SaveAsync(request);
+
+        if (result.Success)
+        {
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        else
+        {
+            _errorMessage = result.ErrorMessage;
+        }
+
+        _saving = false;
+    }
+
+    private async Task<Guid?> GetCurrentUserIdAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var idClaim = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(idClaim, out var id) ? id : null;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

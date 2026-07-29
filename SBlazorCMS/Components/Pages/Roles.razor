@@ -1,7 +1,106 @@
 @page "/roles"
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "roles.manage")]
+@using SBlazorCMS.Components.Dialogs
+@using SBlazorCMS.Infrastructure.Services.Roles
+@inject IRoleService RoleService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <PageTitle>نقش‌ها</PageTitle>
 
-<ComingSoonPage Title="نقش‌ها" Icon="@Icons.Material.Filled.AdminPanelSettings" />
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h4">نقش‌ها</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreateDialog">
+        نقش جدید
+    </MudButton>
+</div>
+
+<MudTable Items="_rows" Hover="true" Dense="true" Elevation="2" Loading="_loading" Class="rounded-lg">
+    <HeaderContent>
+        <MudTh>عنوان نمایشی</MudTh>
+        <MudTh>نام</MudTh>
+        <MudTh>تعداد دسترسی</MudTh>
+        <MudTh>تعداد کاربر</MudTh>
+        <MudTh>عملیات</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="عنوان نمایشی">@context.DisplayName</MudTd>
+        <MudTd DataLabel="نام">@context.Name</MudTd>
+        <MudTd DataLabel="تعداد دسترسی">@context.PermissionCount</MudTd>
+        <MudTd DataLabel="تعداد کاربر">@context.UserCount</MudTd>
+        <MudTd DataLabel="عملیات">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEditDialog(context.Id))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteAsync(context.Id))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>هنوز نقشی ثبت نشده است</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private bool _loading = true;
+    private List<RoleListItemDto> _rows = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _rows = await RoleService.GetListAsync();
+        _loading = false;
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<RoleEditDialog>("نقش جدید");
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("نقش با موفقیت ثبت شد", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task OpenEditDialog(Guid id)
+    {
+        var parameters = new DialogParameters<RoleEditDialog> { { x => x.RoleId, id } };
+        var dialog = await DialogService.ShowAsync<RoleEditDialog>("ویرایش نقش", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("تغییرات ذخیره شد", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "حذف نقش",
+            "آیا از حذف این نقش مطمئن هستید؟",
+            yesText: "حذف",
+            cancelText: "انصراف");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userIdClaim = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = Guid.TryParse(userIdClaim, out var parsedId) ? parsedId : (Guid?)null;
+
+        var result = await RoleService.DeleteAsync(id, userId);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.ErrorMessage!, Severity.Warning);
+            return;
+        }
+
+        Snackbar.Add("نقش حذف شد", Severity.Success);
+        await LoadAsync();
+    }
+}
