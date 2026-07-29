@@ -1,7 +1,102 @@
 @page "/settings"
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "settings.manage")]
+@using SBlazorCMS.Components.Dialogs
+@using SBlazorCMS.Infrastructure.Services.Settings
+@inject ISettingService SettingService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <PageTitle>تنظیمات</PageTitle>
 
-<ComingSoonPage Title="تنظیمات" Icon="@Icons.Material.Filled.Settings" />
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h4">تنظیمات</MudText>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreateDialog">
+        تنظیم جدید
+    </MudButton>
+</div>
+
+<MudTable Items="_rows" Hover="true" Dense="true" Elevation="2" Loading="_loading" Class="rounded-lg">
+    <HeaderContent>
+        <MudTh>کلید</MudTh>
+        <MudTh>مقدار</MudTh>
+        <MudTh>عملیات</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="کلید">@context.Key</MudTd>
+        <MudTd DataLabel="مقدار">@context.Value</MudTd>
+        <MudTd DataLabel="عملیات">
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEditDialog(context.Id))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteAsync(context.Id))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>هنوز تنظیمی ثبت نشده است</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private bool _loading = true;
+    private List<SettingListItemDto> _rows = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _rows = await SettingService.GetListAsync();
+        _loading = false;
+    }
+
+    private async Task OpenCreateDialog()
+    {
+        var dialog = await DialogService.ShowAsync<SettingEditDialog>("تنظیم جدید");
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("تنظیم با موفقیت ثبت شد", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task OpenEditDialog(Guid id)
+    {
+        var parameters = new DialogParameters<SettingEditDialog> { { x => x.SettingId, id } };
+        var dialog = await DialogService.ShowAsync<SettingEditDialog>("ویرایش تنظیم", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("تغییرات ذخیره شد", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "حذف تنظیم",
+            "آیا از حذف این تنظیم مطمئن هستید؟",
+            yesText: "حذف",
+            cancelText: "انصراف");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var userIdClaim = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = Guid.TryParse(userIdClaim, out var parsedId) ? parsedId : (Guid?)null;
+
+        var result = await SettingService.DeleteAsync(id, userId);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.ErrorMessage!, Severity.Warning);
+            return;
+        }
+
+        Snackbar.Add("تنظیم حذف شد", Severity.Success);
+        await LoadAsync();
+    }
+}
