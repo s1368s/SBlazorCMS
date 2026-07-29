@@ -16,6 +16,7 @@ public class CategoryService(IDbContextFactory<ApplicationDbContext> dbFactory, 
             .Select(c => new
             {
                 c.Id,
+                c.Code,
                 c.OrderValue,
                 c.ShowCount,
                 c.ParentId,
@@ -30,6 +31,7 @@ public class CategoryService(IDbContextFactory<ApplicationDbContext> dbFactory, 
         {
             Id = c.Id,
             Title = titleById[c.Id],
+            Code = c.Code,
             OrderValue = c.OrderValue,
             ShowCount = c.ShowCount,
             ParentTitle = c.ParentId.HasValue && titleById.TryGetValue(c.ParentId.Value, out var pt) ? pt : null
@@ -85,6 +87,7 @@ public class CategoryService(IDbContextFactory<ApplicationDbContext> dbFactory, 
 
         var dto = new CategoryEditDto
         {
+            Code = category.Code,
             ParentId = category.ParentId,
             SkinId = category.SkinId,
             OrderValue = category.OrderValue,
@@ -145,6 +148,7 @@ public class CategoryService(IDbContextFactory<ApplicationDbContext> dbFactory, 
             category.UpdatedBy = request.CurrentUserId;
         }
 
+        category.Code = request.Code;
         category.ParentId = request.ParentId;
         category.SkinId = request.SkinId;
         category.OrderValue = request.OrderValue;

@@ -20,6 +20,7 @@
 
 <MudTable Items="_rows" Hover="true" Dense="true" Elevation="2" Loading="_loading" Class="rounded-lg">
     <HeaderContent>
+        <MudTh>کد</MudTh>
         <MudTh>ترتیب</MudTh>
         <MudTh>عنوان</MudTh>
         <MudTh>دسته والد</MudTh>
@@ -27,6 +28,7 @@
         <MudTh>عملیات</MudTh>
     </HeaderContent>
     <RowTemplate>
+        <MudTd DataLabel="کد">@(string.IsNullOrEmpty(context.Code) ? "—" : context.Code)</MudTd>
         <MudTd DataLabel="ترتیب">@context.OrderValue</MudTd>
         <MudTd DataLabel="عنوان">@context.Title</MudTd>
         <MudTd DataLabel="دسته والد">@(context.ParentTitle ?? "—")</MudTd>

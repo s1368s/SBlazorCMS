@@ -2,6 +2,7 @@ namespace SBlazorCMS.Domain;
 
 public class Category : AuditableEntity<Guid>
 {
+    public string Code { get; set; } = string.Empty;
     public int OrderValue { get; set; }
     public int ShowCount { get; set; }
 
