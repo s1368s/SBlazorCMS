@@ -11,4 +11,5 @@ public interface IContentService
     Task<ServiceResult> SaveAsync(ContentSaveRequest request);
     Task<ServiceResult> DeleteAsync(Guid contentId, Guid? currentUserId);
     Task<PagedResult<ContentListItemPublicDto>> GetPublicByCategoryCodeAsync(string categoryCode, int page, int pageSize, string? languageCode);
+    Task<ContentDetailPublicDto?> GetPublicByIdAsync(Guid contentId, string? languageCode);
 }

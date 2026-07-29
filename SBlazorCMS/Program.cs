@@ -103,6 +103,7 @@ app.UseAntiforgery();
 app.MapAccountEndpoints();
 app.MapMenuEndpoints();
 app.MapContentEndpoints();
+app.MapSettingEndpoints();
 
 app.UseStaticFiles();
 app.MapStaticAssets();

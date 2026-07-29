@@ -14,6 +14,14 @@ public static class ContentEndpoints
             .WithSummary("دریافت محتواهای یک دسته‌بندی به‌صورت صفحه‌بندی‌شده")
             .WithDescription("محتواهای منتشرشده‌ی دسته‌بندی مشخص‌شده با کد آن (Category.Code) را جدیدترین به قدیمی‌ترین (بر اساس تاریخ ایجاد) و صفحه‌بندی‌شده برمی‌گرداند. پارامترهای page (پیش‌فرض 1)، pageSize (پیش‌فرض 10، حداکثر 100) و lang (کد زبان، پیش‌فرض زبان پیش‌فرض سیستم) قابل استفاده‌اند.")
             .Produces<PagedResult<ContentListItemPublicDto>>();
+
+        app.MapGet("/api/contents/{id:guid}", HandleGetByIdAsync)
+            .WithName("GetContentById")
+            .WithTags("Contents")
+            .WithSummary("دریافت یک محتوا بر اساس شناسه")
+            .WithDescription("محتوای منتشرشده با شناسه‌ی داده‌شده را برمی‌گرداند. پارامتر lang کد زبان است (پیش‌فرض: زبان پیش‌فرض سیستم).")
+            .Produces<ContentDetailPublicDto>()
+            .Produces(StatusCodes.Status404NotFound);
     }
 
     private static async Task<IResult> HandleGetByCategoryCodeAsync(
@@ -21,5 +29,11 @@ public static class ContentEndpoints
     {
         var result = await contentService.GetPublicByCategoryCodeAsync(categoryCode, page ?? 1, pageSize ?? 10, lang);
         return Results.Ok(result);
+    }
+
+    private static async Task<IResult> HandleGetByIdAsync(Guid id, string? lang, IContentService contentService)
+    {
+        var content = await contentService.GetPublicByIdAsync(id, lang);
+        return content is null ? Results.NotFound() : Results.Ok(content);
     }
 }

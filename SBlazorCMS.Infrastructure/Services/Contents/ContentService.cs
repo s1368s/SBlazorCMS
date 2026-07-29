@@ -33,15 +33,7 @@ public class ContentService(IDbContextFactory<ApplicationDbContext> dbFactory, I
         pageSize = pageSize < 1 ? 10 : Math.Min(pageSize, 100);
 
         await using var db = await dbFactory.CreateDbContextAsync();
-
-        var languageId = string.IsNullOrWhiteSpace(languageCode)
-            ? await languageService.GetDefaultLanguageIdAsync()
-            : await db.Languages.Where(l => l.Code == languageCode && l.IsActive).Select(l => l.Id).FirstOrDefaultAsync();
-
-        if (languageId == Guid.Empty)
-        {
-            languageId = await languageService.GetDefaultLanguageIdAsync();
-        }
+        var languageId = await ResolveLanguageIdAsync(db, languageCode);
 
         var categoryIds = db.Categories.Where(c => c.Code == categoryCode).Select(c => c.Id);
 
@@ -77,6 +69,41 @@ public class ContentService(IDbContextFactory<ApplicationDbContext> dbFactory, I
             TotalCount = totalCount,
             TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
         };
+    }
+
+    public async Task<ContentDetailPublicDto?> GetPublicByIdAsync(Guid contentId, string? languageCode)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var languageId = await ResolveLanguageIdAsync(db, languageCode);
+
+        return await db.Contents
+            .Where(c => c.Id == contentId && c.Status == ContentStatus.Published)
+            .Select(c => new ContentDetailPublicDto
+            {
+                Id = c.Id,
+                Title = c.Translations.Where(t => t.LanguageId == languageId).Select(t => t.Title).FirstOrDefault() ?? string.Empty,
+                Slug = c.Translations.Where(t => t.LanguageId == languageId).Select(t => t.Slug).FirstOrDefault() ?? string.Empty,
+                PreTitle = c.Translations.Where(t => t.LanguageId == languageId).Select(t => t.PreTitle).FirstOrDefault() ?? string.Empty,
+                Summary = c.Translations.Where(t => t.LanguageId == languageId).Select(t => t.Summary).FirstOrDefault() ?? string.Empty,
+                Body = c.Translations.Where(t => t.LanguageId == languageId).Select(t => t.Body).FirstOrDefault() ?? string.Empty,
+                Extra = c.Translations.Where(t => t.LanguageId == languageId).Select(t => t.Extra).FirstOrDefault() ?? string.Empty,
+                SeoTitle = c.Translations.Where(t => t.LanguageId == languageId).Select(t => t.SeoTitle).FirstOrDefault() ?? string.Empty,
+                SeoDescription = c.Translations.Where(t => t.LanguageId == languageId).Select(t => t.SeoDescription).FirstOrDefault() ?? string.Empty,
+                BigImg = c.BigImg,
+                SmallImg = c.SmallImg,
+                PublishDate = c.PublishDate,
+                CreatedAt = c.CreatedAt
+            })
+            .FirstOrDefaultAsync();
+    }
+
+    private async Task<Guid> ResolveLanguageIdAsync(ApplicationDbContext db, string? languageCode)
+    {
+        var languageId = string.IsNullOrWhiteSpace(languageCode)
+            ? await languageService.GetDefaultLanguageIdAsync()
+            : await db.Languages.Where(l => l.Code == languageCode && l.IsActive).Select(l => l.Id).FirstOrDefaultAsync();
+
+        return languageId == Guid.Empty ? await languageService.GetDefaultLanguageIdAsync() : languageId;
     }
 
     public async Task<ContentEditDto?> GetForEditAsync(Guid contentId)

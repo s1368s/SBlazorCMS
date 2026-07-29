@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using SBlazorCMS.Contracts.Settings;
 using SBlazorCMS.Domain;
 using SBlazorCMS.Infrastructure.Persistence;
 using SBlazorCMS.Infrastructure.Services.Common;
@@ -7,6 +8,24 @@ namespace SBlazorCMS.Infrastructure.Services.Settings;
 
 public class SettingService(IDbContextFactory<ApplicationDbContext> dbFactory) : ISettingService
 {
+    public async Task<List<SettingPublicDto>> GetByKeysAsync(List<string> keys)
+    {
+        if (keys.Count == 0)
+        {
+            return new List<SettingPublicDto>();
+        }
+
+        await using var db = await dbFactory.CreateDbContextAsync();
+        return await db.Settings
+            .Where(s => keys.Contains(s.Key))
+            .Select(s => new SettingPublicDto
+            {
+                Key = s.Key,
+                Value = s.Value
+            })
+            .ToListAsync();
+    }
+
     public async Task<List<SettingListItemDto>> GetListAsync()
     {
         await using var db = await dbFactory.CreateDbContextAsync();
