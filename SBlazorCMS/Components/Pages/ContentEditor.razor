@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "content.manage")]
 @using System.Security.Claims
+@using SBlazorCMS.Components.Dialogs
 @using SBlazorCMS.Domain
 @using SBlazorCMS.Infrastructure.Services.Categories
 @using SBlazorCMS.Infrastructure.Services.Common
@@ -17,6 +18,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 
 <PageTitle>@(_isNew ? "محتوای جدید" : "ویرایش محتوا")</PageTitle>
 
@@ -86,8 +88,32 @@ else
 
             <MudPaper Elevation="2" Class="pa-4 rounded-lg mb-4">
                 <MudText Typo="Typo.subtitle2" Class="mb-3">تصاویر</MudText>
-                <MudTextField Label="تصویر بزرگ (URL)" @bind-Value="_bigImg" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
-                <MudTextField Label="تصویر کوچک (URL)" @bind-Value="_smallImg" Variant="Variant.Outlined" Margin="Margin.Dense" />
+
+                <MudText Typo="Typo.caption">تصویر بزرگ</MudText>
+                <div class="d-flex align-center gap-2 mt-1 mb-3">
+                    @if (!string.IsNullOrEmpty(_bigImg))
+                    {
+                        <img src="@_bigImg" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;" />
+                    }
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => PickImageAsync(isBig: true))">انتخاب تصویر</MudButton>
+                    @if (!string.IsNullOrEmpty(_bigImg))
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Clear" Size="Size.Small" OnClick="@(() => _bigImg = string.Empty)" />
+                    }
+                </div>
+
+                <MudText Typo="Typo.caption">تصویر کوچک</MudText>
+                <div class="d-flex align-center gap-2 mt-1">
+                    @if (!string.IsNullOrEmpty(_smallImg))
+                    {
+                        <img src="@_smallImg" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:8px;" />
+                    }
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" OnClick="@(() => PickImageAsync(isBig: false))">انتخاب تصویر</MudButton>
+                    @if (!string.IsNullOrEmpty(_smallImg))
+                    {
+                        <MudIconButton Icon="@Icons.Material.Filled.Clear" Size="Size.Small" OnClick="@(() => _smallImg = string.Empty)" />
+                    }
+                </div>
             </MudPaper>
 
             <MudPaper Elevation="2" Class="pa-4 rounded-lg mb-4">
@@ -227,5 +253,22 @@ else
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         var idClaim = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         return Guid.TryParse(idClaim, out var id) ? id : null;
+    }
+
+    private async Task PickImageAsync(bool isBig)
+    {
+        var dialog = await DialogService.ShowAsync<MediaPickerDialog>("انتخاب رسانه");
+        var result = await dialog.Result;
+        if (result is { Canceled: false } && result.Data is string address)
+        {
+            if (isBig)
+            {
+                _bigImg = address;
+            }
+            else
+            {
+                _smallImg = address;
+            }
+        }
     }
 }

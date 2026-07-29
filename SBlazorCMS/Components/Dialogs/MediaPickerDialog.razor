@@ -1,0 +1,136 @@
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Components.Forms
+@using SBlazorCMS.Infrastructure.Services.Media
+@inject IMediaService MediaService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">انتخاب رسانه</MudText>
+    </TitleContent>
+    <DialogContent>
+        <div class="d-flex justify-space-between align-center mb-3">
+            <MudText Typo="Typo.body2">برای انتخاب، روی تصویر کلیک کنید</MudText>
+            <MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="OnFilesSelectedAsync" Accept=".jpg,.jpeg,.png,.gif,.webp,.svg"
+                           MaxFileSize="MaxFileSizeBytes" Disabled="_uploading">
+                <CustomContent Context="fileUpload">
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.CloudUpload"
+                               Disabled="_uploading" OnClick="@(() => fileUpload.OpenFilePickerAsync())">
+                        @(_uploading ? "در حال آپلود..." : "آپلود جدید")
+                    </MudButton>
+                </CustomContent>
+            </MudFileUpload>
+        </div>
+
+        @if (_loading)
+        {
+            <div class="d-flex justify-center pa-8">
+                <MudProgressCircular Indeterminate="true" />
+            </div>
+        }
+        else if (_rows.Count == 0)
+        {
+            <MudText>هنوز رسانه‌ای بارگذاری نشده است</MudText>
+        }
+        else
+        {
+            <MudGrid Spacing="2" Class="pa-1" Style="max-height: 400px; overflow-y: auto;">
+                @foreach (var item in _rows)
+                {
+                    <MudItem xs="6" sm="4" md="3">
+                        <MudCard Elevation="2" Class="rounded-lg" Style="cursor: pointer;" @onclick="@(() => Select(item))">
+                            @if (IsImage(item.MimeType))
+                            {
+                                <MudCardMedia Image="@item.Address" Height="100" />
+                            }
+                            else
+                            {
+                                <div class="d-flex justify-center align-center" style="height:100px;">
+                                    <MudIcon Icon="@Icons.Material.Filled.InsertDriveFile" />
+                                </div>
+                            }
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">انصراف</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private const long MaxFileSizeBytes = 10 * 1024 * 1024;
+
+    private bool _loading = true;
+    private bool _uploading;
+    private List<MediaListItemDto> _rows = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _rows = await MediaService.GetListAsync();
+        _loading = false;
+    }
+
+    private static bool IsImage(string mimeType) => mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+
+    private void Select(MediaListItemDto item) => MudDialog.Close(DialogResult.Ok(item.Address));
+
+    private async Task OnFilesSelectedAsync(IReadOnlyList<IBrowserFile> files)
+    {
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        _uploading = true;
+        StateHasChanged();
+
+        var userId = await GetCurrentUserIdAsync();
+
+        foreach (var file in files)
+        {
+            try
+            {
+                await using var stream = file.OpenReadStream(MaxFileSizeBytes);
+                var request = new MediaUploadRequest
+                {
+                    Content = stream,
+                    OriginalFileName = file.Name,
+                    ContentType = file.ContentType,
+                    Size = file.Size,
+                    CurrentUserId = userId
+                };
+
+                var result = await MediaService.UploadAsync(request);
+                if (!result.Success)
+                {
+                    Snackbar.Add($"{file.Name}: {result.ErrorMessage}", Severity.Warning);
+                }
+            }
+            catch (IOException)
+            {
+                Snackbar.Add($"{file.Name}: حجم فایل نباید بیشتر از ۱۰ مگابایت باشد", Severity.Warning);
+            }
+        }
+
+        _uploading = false;
+        await LoadAsync();
+    }
+
+    private async Task<Guid?> GetCurrentUserIdAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var idClaim = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(idClaim, out var id) ? id : null;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

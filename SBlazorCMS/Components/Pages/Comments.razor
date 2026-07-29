@@ -1,7 +1,149 @@
 @page "/comments"
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "comments.manage")]
+@using SBlazorCMS.Components.Dialogs
+@using SBlazorCMS.Infrastructure.Services.Comments
+@inject ICommentService CommentService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
 
 <PageTitle>دیدگاه‌ها</PageTitle>
 
-<ComingSoonPage Title="دیدگاه‌ها" Icon="@Icons.Material.Filled.Comment" />
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h4">دیدگاه‌ها</MudText>
+    <MudButtonGroup Variant="Variant.Outlined" Color="Color.Primary">
+        <MudButton OnClick="@(() => SetFilter(null))" Variant="@(_filter is null ? Variant.Filled : Variant.Outlined)">همه</MudButton>
+        <MudButton OnClick="@(() => SetFilter(false))" Variant="@(_filter == false ? Variant.Filled : Variant.Outlined)">در انتظار تایید</MudButton>
+        <MudButton OnClick="@(() => SetFilter(true))" Variant="@(_filter == true ? Variant.Filled : Variant.Outlined)">تایید شده</MudButton>
+    </MudButtonGroup>
+</div>
+
+<MudTable Items="FilteredRows" Hover="true" Dense="true" Elevation="2" Loading="_loading" Class="rounded-lg">
+    <HeaderContent>
+        <MudTh>محتوا</MudTh>
+        <MudTh>نویسنده</MudTh>
+        <MudTh>ایمیل</MudTh>
+        <MudTh>متن دیدگاه</MudTh>
+        <MudTh>وضعیت</MudTh>
+        <MudTh>تاریخ</MudTh>
+        <MudTh>عملیات</MudTh>
+    </HeaderContent>
+    <RowTemplate>
+        <MudTd DataLabel="محتوا">@context.ContentTitle</MudTd>
+        <MudTd DataLabel="نویسنده">@context.Name</MudTd>
+        <MudTd DataLabel="ایمیل">@context.Email</MudTd>
+        <MudTd DataLabel="متن دیدگاه">
+            <MudTooltip Text="@context.Text">
+                <MudText Typo="Typo.body2" Class="text-truncate" Style="max-width: 260px; display: inline-block;">@context.Text</MudText>
+            </MudTooltip>
+        </MudTd>
+        <MudTd DataLabel="وضعیت">
+            @if (context.IsApproved)
+            {
+                <MudChip T="string" Color="Color.Success" Size="Size.Small">تایید شده</MudChip>
+            }
+            else
+            {
+                <MudChip T="string" Color="Color.Warning" Size="Size.Small">در انتظار</MudChip>
+            }
+        </MudTd>
+        <MudTd DataLabel="تاریخ">@context.CreatedAt.ToLocalTime().ToString("yyyy/MM/dd HH:mm")</MudTd>
+        <MudTd DataLabel="عملیات">
+            @if (context.IsApproved)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.Cancel" Size="Size.Small" Color="Color.Warning"
+                               OnClick="@(() => ToggleApprovalAsync(context, false))" title="لغو تایید" />
+            }
+            else
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Color="Color.Success"
+                               OnClick="@(() => ToggleApprovalAsync(context, true))" title="تایید" />
+            }
+            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => OpenEditDialog(context.Id))" />
+            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteAsync(context.Id))" />
+        </MudTd>
+    </RowTemplate>
+    <NoRecordsContent>
+        <MudText>دیدگاهی یافت نشد</MudText>
+    </NoRecordsContent>
+</MudTable>
+
+@code {
+    private bool _loading = true;
+    private bool? _filter;
+    private List<CommentListItemDto> _rows = [];
+
+    private IEnumerable<CommentListItemDto> FilteredRows =>
+        _filter is null ? _rows : _rows.Where(c => c.IsApproved == _filter);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _rows = await CommentService.GetListAsync();
+        _loading = false;
+    }
+
+    private void SetFilter(bool? value) => _filter = value;
+
+    private async Task OpenEditDialog(Guid id)
+    {
+        var parameters = new DialogParameters<CommentEditDialog> { { x => x.CommentId, id } };
+        var dialog = await DialogService.ShowAsync<CommentEditDialog>("ویرایش دیدگاه", parameters);
+        var result = await dialog.Result;
+        if (result is { Canceled: false })
+        {
+            Snackbar.Add("تغییرات ذخیره شد", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task ToggleApprovalAsync(CommentListItemDto comment, bool approve)
+    {
+        var userId = await GetCurrentUserIdAsync();
+        var result = await CommentService.SetApprovalAsync(comment.Id, approve, userId);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.ErrorMessage!, Severity.Warning);
+            return;
+        }
+
+        Snackbar.Add(approve ? "دیدگاه تایید شد" : "تایید دیدگاه لغو شد", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "حذف دیدگاه",
+            "آیا از حذف این دیدگاه مطمئن هستید؟",
+            yesText: "حذف",
+            cancelText: "انصراف");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var userId = await GetCurrentUserIdAsync();
+
+        var result = await CommentService.DeleteAsync(id, userId);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.ErrorMessage!, Severity.Warning);
+            return;
+        }
+
+        Snackbar.Add("دیدگاه حذف شد", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task<Guid?> GetCurrentUserIdAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var idClaim = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(idClaim, out var id) ? id : null;
+    }
+}

@@ -1,0 +1,102 @@
+@using System.Security.Claims
+@using SBlazorCMS.Infrastructure.Services.Comments
+@inject ICommentService CommentService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">ویرایش دیدگاه</MudText>
+    </TitleContent>
+    <DialogContent>
+        @if (_loading)
+        {
+            <div class="d-flex justify-center pa-4">
+                <MudProgressCircular Indeterminate="true" />
+            </div>
+        }
+        else
+        {
+            <MudTextField Label="نام" @bind-Value="_name" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+            <MudTextField Label="ایمیل" @bind-Value="_email" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3" />
+            <MudTextField Label="متن دیدگاه" @bind-Value="_text" Required="true" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="4" Class="mb-3" />
+            <MudSwitch T="bool" @bind-Value="_isApproved" Color="Color.Primary" Label="تایید شده" />
+
+            @if (!string.IsNullOrEmpty(_errorMessage))
+            {
+                <MudAlert Severity="Severity.Error" Class="mt-3">@_errorMessage</MudAlert>
+            }
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">انصراف</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Save" Disabled="_saving">ذخیره</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+    [Parameter] public Guid CommentId { get; set; }
+
+    private bool _loading = true;
+    private bool _saving;
+    private string? _errorMessage;
+
+    private string _name = string.Empty;
+    private string _email = string.Empty;
+    private string _text = string.Empty;
+    private bool _isApproved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var editDto = await CommentService.GetForEditAsync(CommentId);
+        if (editDto is not null)
+        {
+            _name = editDto.Name;
+            _email = editDto.Email;
+            _text = editDto.Text;
+            _isApproved = editDto.IsApproved;
+        }
+
+        _loading = false;
+    }
+
+    private async Task Save()
+    {
+        _saving = true;
+        _errorMessage = null;
+
+        var userId = await GetCurrentUserIdAsync();
+
+        var request = new CommentUpdateRequest
+        {
+            CommentId = CommentId,
+            Name = _name,
+            Email = _email,
+            Text = _text,
+            IsApproved = _isApproved,
+            CurrentUserId = userId
+        };
+
+        var result = await CommentService.UpdateAsync(request);
+
+        if (result.Success)
+        {
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        else
+        {
+            _errorMessage = result.ErrorMessage;
+        }
+
+        _saving = false;
+    }
+
+    private async Task<Guid?> GetCurrentUserIdAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var idClaim = state.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(idClaim, out var id) ? id : null;
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}
