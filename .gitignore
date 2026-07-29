@@ -3,6 +3,9 @@
 *.db-shm
 *.db-wal
 
+# User-uploaded media files
+SBlazorCMS/wwwroot/uploads/
+
 _build/
 _site/
 

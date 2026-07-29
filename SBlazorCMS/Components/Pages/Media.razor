@@ -1,7 +1,186 @@
 @page "/media"
 @rendermode InteractiveServer
 @attribute [Authorize(Policy = "media.manage")]
+@using Microsoft.AspNetCore.Components.Forms
+@using SBlazorCMS.Infrastructure.Services.Media
+@inject IMediaService MediaService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
 
 <PageTitle>رسانه‌ها</PageTitle>
 
-<ComingSoonPage Title="رسانه‌ها" Icon="@Icons.Material.Filled.PermMedia" />
+<div class="d-flex align-center justify-space-between mb-4">
+    <MudText Typo="Typo.h4">رسانه‌ها</MudText>
+    <MudFileUpload T="IReadOnlyList<IBrowserFile>" FilesChanged="OnFilesSelectedAsync" Accept=".jpg,.jpeg,.png,.gif,.webp,.svg"
+                   MaxFileSize="MaxFileSizeBytes" Disabled="_uploading">
+        <CustomContent Context="fileUpload">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CloudUpload"
+                       Disabled="_uploading" OnClick="@(() => fileUpload.OpenFilePickerAsync())">
+                @(_uploading ? "در حال آپلود..." : "آپلود رسانه")
+            </MudButton>
+        </CustomContent>
+    </MudFileUpload>
+</div>
+
+@if (_loading)
+{
+    <div class="d-flex justify-center pa-8">
+        <MudProgressCircular Indeterminate="true" />
+    </div>
+}
+else if (_rows.Count == 0)
+{
+    <MudPaper Elevation="2" Class="pa-8 rounded-lg d-flex justify-center">
+        <MudText>هنوز رسانه‌ای بارگذاری نشده است</MudText>
+    </MudPaper>
+}
+else
+{
+    <MudGrid Spacing="3">
+        @foreach (var item in _rows)
+        {
+            <MudItem xs="12" sm="6" md="4" lg="3">
+                <MudCard Elevation="2" Class="rounded-lg">
+                    @if (IsImage(item.MimeType))
+                    {
+                        <MudCardMedia Image="@item.Address" Height="160" />
+                    }
+                    else
+                    {
+                        <div class="d-flex justify-center align-center" style="height:160px; background-color: var(--mud-palette-background-grey);">
+                            <MudIcon Icon="@Icons.Material.Filled.InsertDriveFile" Size="Size.Large" />
+                        </div>
+                    }
+                    <MudCardContent>
+                        <MudText Typo="Typo.body2" Class="text-truncate">@item.OriginalName</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@FormatSize(item.Size)</MudText>
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" OnClick="@(() => CopyAddress(item.Address))" title="کپی آدرس" />
+                        <MudSpacer />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteAsync(item.Id))" />
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private const long MaxFileSizeBytes = 10 * 1024 * 1024;
+
+    private bool _loading = true;
+    private bool _uploading;
+    private List<MediaListItemDto> _rows = [];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _rows = await MediaService.GetListAsync();
+        _loading = false;
+    }
+
+    private static bool IsImage(string mimeType) => mimeType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024.0:0.#} KB";
+        return $"{bytes / (1024.0 * 1024.0):0.#} MB";
+    }
+
+    private async Task OnFilesSelectedAsync(IReadOnlyList<IBrowserFile> files)
+    {
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        _uploading = true;
+        StateHasChanged();
+
+        var userId = await GetCurrentUserIdAsync();
+        var successCount = 0;
+
+        foreach (var file in files)
+        {
+            try
+            {
+                await using var stream = file.OpenReadStream(MaxFileSizeBytes);
+                var request = new MediaUploadRequest
+                {
+                    Content = stream,
+                    OriginalFileName = file.Name,
+                    ContentType = file.ContentType,
+                    Size = file.Size,
+                    CurrentUserId = userId
+                };
+
+                var result = await MediaService.UploadAsync(request);
+                if (result.Success)
+                {
+                    successCount++;
+                }
+                else
+                {
+                    Snackbar.Add($"{file.Name}: {result.ErrorMessage}", Severity.Warning);
+                }
+            }
+            catch (IOException)
+            {
+                Snackbar.Add($"{file.Name}: حجم فایل نباید بیشتر از ۱۰ مگابایت باشد", Severity.Warning);
+            }
+        }
+
+        if (successCount > 0)
+        {
+            Snackbar.Add($"{successCount} فایل با موفقیت بارگذاری شد", Severity.Success);
+        }
+
+        _uploading = false;
+        await LoadAsync();
+    }
+
+    private async Task CopyAddress(string address)
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", address);
+        Snackbar.Add("آدرس کپی شد", Severity.Success);
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            "حذف رسانه",
+            "آیا از حذف این رسانه مطمئن هستید؟",
+            yesText: "حذف",
+            cancelText: "انصراف");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
+        var userId = await GetCurrentUserIdAsync();
+
+        var result = await MediaService.DeleteAsync(id, userId);
+        if (!result.Success)
+        {
+            Snackbar.Add(result.ErrorMessage!, Severity.Warning);
+            return;
+        }
+
+        Snackbar.Add("رسانه حذف شد", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task<Guid?> GetCurrentUserIdAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var idClaim = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(idClaim, out var id) ? id : null;
+    }
+}

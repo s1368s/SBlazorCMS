@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
+using SBlazorCMS;
 using SBlazorCMS.Authorization;
 using SBlazorCMS.Components;
 using SBlazorCMS.Domain;
@@ -11,6 +12,7 @@ using SBlazorCMS.Infrastructure.Persistence;
 using SBlazorCMS.Infrastructure.Services.Categories;
 using SBlazorCMS.Infrastructure.Services.Common;
 using SBlazorCMS.Infrastructure.Services.Contents;
+using SBlazorCMS.Infrastructure.Services.Media;
 using SBlazorCMS.Infrastructure.Services.MenuItems;
 using SBlazorCMS.Infrastructure.Services.Menus;
 using SBlazorCMS.Infrastructure.Services.Roles;
@@ -23,7 +25,11 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents()
+    .AddHubOptions(options =>
+    {
+        options.MaximumReceiveMessageSize = 15 * 1024 * 1024;
+    });
 
 builder.Services.AddMudServices(config =>
 {
@@ -43,6 +49,8 @@ builder.Services.AddScoped<IMenuItemService, MenuItemService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
 builder.Services.AddScoped<ISettingService, SettingService>();
+builder.Services.AddScoped<IMediaService, MediaService>();
+builder.Services.AddSingleton<IUploadPathProvider, WebRootUploadPathProvider>();
 
 builder.Services.AddAntiforgery();
 
@@ -81,6 +89,7 @@ app.UseAntiforgery();
 
 app.MapAccountEndpoints();
 
+app.UseStaticFiles();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
