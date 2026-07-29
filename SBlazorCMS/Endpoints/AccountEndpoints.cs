@@ -18,9 +18,11 @@ public static class AccountEndpoints
                 IDbContextFactory<ApplicationDbContext> dbFactory, IPasswordHasher<User> hasher)
             => HandleLoginAsync(http, antiforgery, dbFactory, hasher));
         loginBuilder.DisableAntiforgery();
+        loginBuilder.ExcludeFromDescription();
 
         var logoutBuilder = app.MapPost("/account/logout", (Delegate)((HttpContext http) => HandleLogoutAsync(http)));
         logoutBuilder.DisableAntiforgery();
+        logoutBuilder.ExcludeFromDescription();
     }
 
     private static async Task<IResult> HandleLoginAsync(
